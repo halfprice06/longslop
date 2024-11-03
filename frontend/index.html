@@ -2,19 +2,144 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your LLM Project</title>
+    <title>nonslop</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
-        <h1>Your LLM Project</h1>
-        <div id="chat-container">
-            <!-- Chat messages will go here -->
+        <h1>nonslop</h1>
+        
+        <div class="written-article panel">
+            <div class="panel-header">
+                <h2>Article</h2>
+            </div>
+            <div class="panel-content">
+                <div id="article-output">The complete article will appear here...</div>
+            </div>
         </div>
-        <div class="input-container">
-            <input type="text" id="user-input" placeholder="Type your message...">
-            <button onclick="sendMessage()">Send</button>
+        
+        <div class="main-layout">
+            <!-- Left column -->
+            <div class="content-column">
+                <div class="input-container">
+                    <div class="input-section">
+                        <div class="input-group">
+                            <label for="topic">Topic</label>
+                            <textarea 
+                                id="topic" 
+                                placeholder="What would you like an article about? Be as specific as you'd like..."
+                                rows="1"
+                                onkeypress="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); writeArticle(); }"
+                            ></textarea>
+                        </div>
+                        <div class="input-group">
+                            <label for="style-select">
+                                Writing Style
+                                <a href="#" class="style-info-link" onclick="showStyleInfo(event)">(Learn more)</a>
+                            </label>
+                            <select id="style-select" class="style-select">
+                                <!-- Publications -->
+                                <option value="new_yorker">The New Yorker</option>
+                                <option value="atlantic">The Atlantic</option>
+                                <option value="economist">The Economist</option>
+                                <option value="london_review">London Review of Books</option>
+                                <option value="scientific_american">Scientific American</option>
+                                <option value="vox">Vox</option>
+                                <option value="jane_austen">Jane Austen</option>
+                                <option value="mark_twain">Mark Twain</option>
+                                <option value="hemingway">Hemingway</option>
+                                <option value="david_foster_wallace">David Foster Wallace</option>
+                                <option value="terry_pratchett">Terry Pratchett</option>
+                                <option value="atwood">Margaret Atwood</option>
+                                <option value="borges">Jorge Luis Borges</option>
+                                <option value="gladwell">Malcolm Gladwell</option>
+                                <option value="oliver_sacks">Oliver Sacks</option>
+                                <option value="carl_sagan">Carl Sagan</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="length-select">Article Length:</label>
+                            <select id="length-select" name="length">
+                                <option value="short">Short</option>
+                                <option value="medium">Medium</option>
+                                <option value="long" selected>Long</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="provider">AI Provider:</label>
+                            <select id="provider" name="provider" class="form-control">
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic (Claude)</option>
+                            </select>
+                        </div>
+                        <label for="includeHeaders">Include Headers</label>
+                        <input type="checkbox" id="includeHeaders" name="includeHeaders" checked>
+                    </div>
+                    <button id="generateButton" onclick="writeArticle()" class="generate-button">Generate Article</button>
+                </div>
+
+                <div class="output-section">
+                    <div class="planning-section">
+                        <div class="planning-header" onclick="togglePlanning()">
+                            <h2>Planning</h2>
+                            <span class="toggle-icon">▼</span>
+                        </div>
+                        <div class="planning-content">
+                            <div class="panel narrative-plan">
+                                <div class="panel-header">
+                                    <h2>Initial Plan</h2>
+                                </div>
+                                <div class="panel-content">
+                                    <div id="narrative-output">Enter a topic and click "Generate Article" to start...</div>
+                                </div>
+                            </div>
+                            <div class="panel structured-plan">
+                                <div class="panel-header">
+                                    <h2>Structured Outline</h2>
+                                </div>
+                                <div class="panel-content">
+                                    <div id="structured-output">The structured outline will appear here...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right column -->
+            <div class="style-column">
+                <div class="style-info">
+                    <!-- Style info will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Add this after the main-layout div -->
+        <div class="style-modal-overlay">
+            <div class="style-modal">
+                <button class="style-modal-close">&times;</button>
+                <div class="style-info">
+                    <!-- Style info content will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Add this after your existing content -->
+        <div id="past-articles" class="section">
+            <h2>Past Articles</h2>
+            <div class="article-list">
+                <!-- Articles will be listed here -->
+            </div>
+            <div class="article-viewer" style="display: none;">
+                <button class="back-button">← Back to List</button>
+                <div class="article-content">
+                    <!-- Selected article content will be shown here -->
+                </div>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>

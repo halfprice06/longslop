@@ -1,35 +1,940 @@
-.container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
+:root {
+    --primary-color: #000000;
+    --primary-hover: #333333;
+    --bg-color: #ffffff;
+    --panel-bg: #ffffff;
+    --text-color: #1a1a1a;
+    --border-color: #e5e5e5;
+    --shadow-sm: none;
+    --shadow-md: none;
+    --radius: 0px;
+    --font-serif: 'Playfair Display', Georgia, serif;
+    --font-sans: 'Inter', -apple-system, sans-serif;
 }
 
-#chat-container {
-    height: 400px;
-    border: 1px solid #ccc;
-    margin-bottom: 20px;
-    padding: 10px;
-    overflow-y: auto;
+body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 4rem 3rem;
+}
+
+h1 {
+    font-family: var(--font-serif);
+    font-size: 2rem;
+    color: var(--text-color);
+    margin-bottom: 3rem;
+    text-align: center;
+    letter-spacing: -0.02em;
+}
+
+h2 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 1.25rem;
+    margin: 0;
 }
 
 .input-container {
-    display: flex;
-    gap: 10px;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: #fafafa;
+    box-sizing: border-box;
+    transition: opacity 0.2s ease-out;
 }
 
-#user-input {
+.input-section {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.input-group:first-child {
     flex: 1;
+}
+
+label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+textarea#topic {
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1.1rem;
+    font-family: var(--font-serif);
+    transition: all 0.2s;
+    resize: none;
+    background-color: white;
+}
+
+textarea#topic:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+}
+
+.style-select {
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: var(--font-sans);
+    background-color: white;
+}
+
+.style-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.generate-button {
+    width: 100%;
+    padding: 1rem 2rem;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: all 0.2s;
+}
+
+.generate-button:hover {
+    background-color: var(--primary-hover);
+    transform: none;
+}
+
+@media (max-width: 768px) {
+    .input-section {
+        flex-direction: column;
+    }
+    
+    .style-select {
+        width: 100%;
+        min-width: unset;
+    }
+}
+
+.style-info {
+    max-width: 900px;
+    margin: 0 auto 3rem auto;
+}
+
+.style-info h3 {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    font-weight: normal;
+}
+
+.style-info .example {
+    border-left: none;
+    padding-left: 0;
+    font-style: italic;
+    color: #888;
+}
+
+.output-section {
+    display: block;
+    gap: 4rem;
+}
+
+.panel {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+}
+
+.panel-header {
+    padding: 1.5rem;
+    margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+    background-color: #fafafa;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.panel-header h2 {
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    font-weight: normal;
+}
+
+.panel-content {
+    padding: 2rem 0;
+}
+
+.written-article {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto 0 auto;
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 2rem;
+}
+
+.written-article .panel-content {
+    padding: 2rem 0;
+    width: 100%;
+}
+
+/* Markdown content styling */
+.panel-content h1,
+.panel-content h2,
+.panel-content h3 {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.panel-content p {
+    margin-bottom: 1rem;
+    line-height: 1.8;
+}
+
+.panel-content ul,
+.panel-content ol {
+    margin-bottom: 1rem;
+    padding-left: 1.5rem;
+}
+
+/* JSON styling */
+.json-string { color: #22c55e; }
+.json-keyword { color: #3b82f6; }
+
+/* Loading state */
+.loading {
+    position: relative;
+}
+
+.loading::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.9);
+    z-index: 1;
+    border-radius: var(--radius);
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: calc(50% - 15px);
+    left: calc(50% - 15px);
+    width: 30px;
+    height: 30px;
+    border: 2px solid var(--border-color);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    z-index: 2;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .output-section {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+    
+    .narrative-plan,
+    .structured-plan {
+        width: 100%;
+    }
+}
+
+/* Output panels base styles */
+#narrative-output,
+#article-output {
+    white-space: pre-wrap;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.6;
+}
+
+#narrative-output p,
+#article-output p {
+    margin-bottom: 0.8em;
+}
+
+/* Article specific styling */
+#article-output {
+    max-width: 900px;
+    margin: 0;
+    padding: 0;
+}
+
+#article-output h1,
+#article-output h2,
+#article-output h3 {
+    font-family: 'Adobe Caslon Pro', 'Times New Roman', serif;
+    font-weight: normal;
+}
+
+#article-output h1 {
+    font-size: 2.5rem;
+    text-align: left;
+    margin-bottom: 3rem;
+    line-height: 1.2;
+}
+
+#article-output h2,
+#article-output h3 {
+    margin-top: 2.5rem;
+    margin-bottom: 1.5rem;
+}
+
+#article-output p {
+    margin-bottom: 1.5rem;
+    text-align: justify;
+    text-justify: inter-word;
+    font-size: 1.2rem;
+    hyphens: auto;
+}
+
+/* Article typography enhancements */
+#article-output h1 + p,
+#article-output h2 + p,
+#article-output h3 + p {
+    text-indent: 0;
+}
+
+#article-output p + p {
+    text-indent: 2em;
+}
+
+#article-output h1 + p::first-letter {
+    float: left;
+    font-size: 4.5rem;
+    line-height: 0.8;
+    padding: 0.1em 0.1em 0 0;
+    font-family: 'Adobe Caslon Pro', 'Times New Roman', serif;
+    font-weight: bold;
+}
+
+/* Small caps styling */
+#article-output p[data-caps]::first-line {
+    text-transform: uppercase;
+    font-size: 0.95em;
+    letter-spacing: 0.05em;
+}
+
+/* Add these new styles */
+.planning-section {
+    grid-column: 1;
+    margin-top: 2rem;
+}
+
+.planning-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    margin: -1.5rem -1.5rem 0 -1.5rem;
+    background-color: #fafafa;
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+.planning-header:hover {
+    opacity: 0.7;
+}
+
+.planning-header h2 {
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    font-weight: normal;
+}
+
+.toggle-icon {
+    font-size: 0.8rem;
+    color: var(--text-color);
+    transition: transform 0.2s ease;
+    opacity: 0.5;
+}
+
+.planning-section.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.planning-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+    padding: 2rem 1.5rem;
+    transition: all 0.3s ease-in-out;
+    overflow: hidden;
+}
+
+.planning-section.collapsed .planning-content {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+}
+
+@media (max-width: 768px) {
+    .planning-content {
+        padding: 1.5rem 1rem;
+        gap: 2rem;
+    }
+}
+
+@media (max-width: 1024px) {
+    .container {
+        padding: 3rem 2rem;
+    }
+    
+    .output-section {
+        gap: 3rem;
+    }
+    
+    .planning-content {
+        gap: 3rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 2rem 1.5rem;
+    }
+    
+    .output-section {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+    
+    .planning-content {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+}
+
+/* Add these new styles and modify some existing ones */
+
+/* Main layout */
+.main-layout {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+}
+
+.content-column {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+.style-column {
+    position: sticky;
+    top: 2rem;
+    padding-top: 0.5rem;
+    background-color: #fafafa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+/* Update input container styles */
+.input-container {
+    margin-bottom: 2rem;
+    padding: 2rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: #fafafa;
+}
+
+/* Update style info styles */
+.style-info {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #666;
+    padding: 1.5rem;
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.style-info h3 {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    font-weight: normal;
+    color: var(--text-color);
+}
+
+.style-info p {
+    margin-bottom: 1.5rem;
+    text-align: justify;
+    text-justify: inter-word;
+}
+
+.style-info .example {
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: #888;
+    margin-top: 1.5rem;
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--border-color);
+    text-align: justify;
+    text-justify: inter-word;
+}
+
+/* Update responsive styles */
+@media (max-width: 1024px) {
+    .main-layout {
+        grid-template-columns: minmax(0, 1fr) 250px;
+        gap: 3rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .main-layout {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+
+    .style-column {
+        position: static;
+        padding-top: 0;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .input-container {
+        margin-bottom: 2rem;
+        padding-bottom: 2rem;
+    }
+}
+
+/* Add styles for the dropdown options */
+.style-select option {
+    padding: 1rem;
+    font-size: 1rem;
+    font-family: var(--font-sans);
+}
+
+/* Add more visual separation between sections */
+.input-container {
+    margin-bottom: 4rem;
+    padding: 2rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: #fafafa;
+}
+
+/* Make the input area more prominent */
+.input-section {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* Style the topic textarea to be more prominent */
+textarea#topic {
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1.1rem;
+    font-family: var(--font-serif);
+    transition: all 0.2s;
+    resize: none;
+    background-color: white;
+}
+
+/* Style the style select to match the textarea */
+.style-select {
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: var(--font-sans);
+    background-color: white;
+}
+
+/* Update the generate button styling */
+.generate-button {
+    width: 100%;
+    padding: 1rem 2rem;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: all 0.2s;
+}
+
+/* Add more distinct section headers */
+.panel-header {
+    padding: 1.5rem;
+    margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+    background-color: #fafafa;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Style the panels to be more distinct */
+.panel {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+}
+
+/* Update the planning section styling */
+.planning-header {
+    padding: 1.5rem;
+    margin: -1.5rem -1.5rem 0 -1.5rem;
+    background-color: #fafafa;
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 8px 8px 0 0;
+}
+
+/* Style the style info section */
+.style-info {
+    padding: 1.5rem;
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+/* Add subtle transitions */
+.panel, .input-container, .style-info {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Hover effects */
+.panel:hover, .input-container:hover, .style-info:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+/* Update the written article section */
+.written-article {
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 2rem;
+    margin-bottom: 4rem;
+}
+
+/* Add visual separation between main sections */
+.main-layout {
+    gap: 3rem;
+    padding-top: 2rem;
+}
+
+/* Make the style column more distinct */
+.style-column {
+    background-color: #fafafa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+/* Add new modal styles */
+.style-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+    pointer-events: none;
+}
+
+.style-modal-overlay.active {
+    display: flex;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.style-modal {
+    background: white;
+    padding: 2.5rem;
+    border-radius: 8px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    transform: translateY(20px);
+    transition: transform 0.2s ease-in-out;
+}
+
+.style-modal-overlay.active .style-modal {
+    transform: translateY(0);
+}
+
+.style-modal-close {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+    padding: 0.5rem;
+    line-height: 1;
+    z-index: 1001;
+}
+
+.style-modal-close:hover {
+    opacity: 1;
+}
+
+/* Update layout styles */
+.main-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 800px;
+    margin: 0 auto;
+    padding-top: 2rem;
+}
+
+.content-column {
+    width: 100%;
+}
+
+/* Update input styles */
+.input-container {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: #fafafa;
+}
+
+textarea#topic {
+    min-height: 100px;
+    padding: 1.5rem;
+}
+
+/* Style info link */
+.style-info-link {
+    display: inline-block;
+    margin-left: 0.5rem;
+    color: #666;
+    text-decoration: none;
+    font-size: 0.875rem;
+}
+
+.style-info-link:hover {
+    text-decoration: underline;
+}
+
+/* Hide the style column */
+.style-column {
+    display: none;
+}
+
+.try-again-button {
+    display: block;
+    margin: 2rem auto;
+    padding: 1rem 2rem;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s ease-out;
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+.try-again-button:hover {
+    background-color: var(--primary-hover);
+}
+
+.try-again-button.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Update the first-line capitalization styles */
+#article-output p[data-caps="true"]::first-line {
+    text-transform: none;
+}
+
+/* Add new style for first few words capitalization */
+#article-output p:first-of-type::first-letter {
+    float: left;
+    font-size: 4.5rem;
+    line-height: 0.8;
+    padding: 0.1em 0.1em 0 0;
+    font-family: var(--font-serif);
+}
+
+#article-output p:first-of-type span.small-caps {
+    text-transform: uppercase;
+    font-size: 0.95em;
+    letter-spacing: 0.05em;
+}
+
+/* Add these styles */
+.article-list {
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
     padding: 10px;
 }
 
-button {
-    padding: 10px 20px;
-    background-color: #007bff;
-    color: white;
+.article-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.article-item:hover {
+    background-color: #f5f5f5;
+}
+
+.article-item h3 {
+    margin: 0 0 5px 0;
+}
+
+.article-item .meta {
+    font-size: 0.9em;
+    color: #666;
+}
+
+.article-viewer {
+    margin-top: 20px;
+}
+
+.back-button {
+    margin-bottom: 20px;
+    padding: 8px 16px;
+    background-color: #f0f0f0;
     border: none;
+    border-radius: 4px;
     cursor: pointer;
 }
 
-button:hover {
-    background-color: #0056b3;
-} 
+.back-button:hover {
+    background-color: #e0e0e0;
+}
+
+.article-content {
+    line-height: 1.6;
+}
+
+.section-title {
+    font-weight: bold;
+    margin-top: 20px;
+    color: #333;
+}
+
+.section-content {
+    margin-left: 20px;
+}
+
+.subsection-title {
+    font-weight: bold;
+    margin-top: 15px;
+    color: #666;
+}
+
+.subsection-content {
+    margin-left: 40px;
+}
+
+/* Add these styles for the new select element */
+#length-select {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: white;
+    font-size: 16px;
+    width: 100%;
+    margin-top: 4px;
+}
+
+#length-select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0,123,255,.25);
+}
+
+/* Update the written article paragraph spacing */
+.written-article .panel-content p {
+    margin: 2rem 0;  /* Increase spacing between paragraphs */
+}
+
+.large-first-letter {
+    font-size: 2em; /* Adjust the size as needed */
+    font-weight: bold;
+    /* Additional styling to achieve the large first letter effect */
+}
+
+/* If you need to style only the first letter of the span */
+.large-first-letter::first-letter {
+    font-size: 3em; /* Adjust the size for the first letter */
+    float: left;
+    line-height: 1;
+    margin-right: 0.1em;
+}

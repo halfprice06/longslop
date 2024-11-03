@@ -1,25 +1,42 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
+from app.routes.article_routes import router as article_router
+import logging
 
-# Load environment variables
-load_dotenv()
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Your LLM Project")
+app = FastAPI()
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your frontend URL
+    allow_origins=["*"],  # In production, replace with specific origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Type", "Cache-Control"]
 )
 
+# Include the article routes
+app.include_router(article_router)
+
+# Mount the frontend directory
+app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
+
+# Add root redirect to frontend
 @app.get("/")
 async def root():
-    return {"message": "Welcome to the LLM API"}
+    return RedirectResponse(url="/frontend/")
+
+# Add error handling
+@app.exception_handler(500)
+async def internal_error_handler(request, exc):
+    logger.error(f"Internal Server Error: {str(exc)}", exc_info=True)
+    return {"detail": str(exc)}, 500
 
 if __name__ == "__main__":
     import uvicorn
