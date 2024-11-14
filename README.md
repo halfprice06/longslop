@@ -1,27 +1,35 @@
-# Your LLM Project
+# nonslop
 
-A FastAPI-based application that integrates with LLMs.
+An AI-powered article generator that creates well-structured articles in various styles and lengths.
+
+## Features
+
+- Generate articles on any topic with customizable length and style.
+- Supports multiple AI providers: OpenAI and Anthropic (Claude).
+- Provides planning stages with an initial plan and structured outline.
+- Backend API built with FastAPI in Python.
 
 ## Setup
 
-1. Clone the repository
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/yourusername/nonslop.git
+   cd nonslop
+   ```
 
-## Dependencies
-
-1. Install dependencies using `pip-tools`:
+2. **Install dependencies using `pip-tools`**:
    ```bash
    pip install pip-tools
    pip-sync requirements.txt
    ```
 
-## Environment Variables
+3. **Set up environment variables**:
 
-Create a `.env` file at the root of the project and add your API keys:
-
-```env
-OPENAI_API_KEY=your_openai_api_key
-ANTHROPIC_API_KEY=your_anthropic_api_key
-```
+   Create a `.env` file at the root of the project and add your API keys:
+   ```env
+   OPENAI_API_KEY=your_openai_api_key
+   ANTHROPIC_API_KEY=your_anthropic_api_key
+   ```
 
 ## Running the Application
 
