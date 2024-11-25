@@ -1,4 +1,4 @@
-# nonslop
+# longslop
 
 An AI-powered article generator that creates well-structured articles in various styles and lengths.
 
@@ -13,8 +13,8 @@ An AI-powered article generator that creates well-structured articles in various
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/nonslop.git
-   cd nonslop
+   git clone https://github.com/yourusername/longslop.git
+   cd longslop
    ```
 
 2. **Install dependencies using `pip-tools`**:
