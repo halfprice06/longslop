@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional, Tuple, Union
-from openai import OpenAI
+import openai
 from app.schemas import ArticleStructure, ArticleLength, ShortArticleStructure, MediumArticleStructure, LongArticleStructure
 import logging
 import os
@@ -27,12 +27,8 @@ load_dotenv(env_path)
 # Set the API key directly
 api_key = os.getenv("OPENAI_API_KEY")
 
-# Initialize OpenAI client with API key directly
-client = OpenAI(
-    api_key=api_key
-)
-
-logger.info(f"Client initialized with API key starting with: {api_key[:8]}...")
+# Set the API key directly on the openai module
+openai.api_key = api_key
 
 # After the existing logging setup
 if os.getenv('DEBUG', 'false').lower() == 'true':
@@ -59,8 +55,8 @@ def log_api_error(function_name: str, error: Exception, **extra_info):
 def test_api_connection():
     """Test the OpenAI API connection"""
     try:
-        completion = client.chat.completions.create(
-            model="o1-preview",
+        completion = openai.chat.completions.create(
+            model="gpt-4o-2024-11-20",
             messages=[
                 {"role": "user", "content": "Say hello"}
             ]
@@ -68,7 +64,7 @@ def test_api_connection():
         logger.info("API connection test successful")
         return True
     except Exception as e:
-        log_api_error('test_api_connection', e, model="o1-preview")
+        log_api_error('test_api_connection', e, model="gpt-4o-2024-11-20")
         return False
 
 def generate_article_plan(
@@ -156,8 +152,8 @@ def generate_article_plan(
             )
             return completion.content[0].text
         else:
-            completion = client.chat.completions.create(
-                model="o1-preview",
+            completion = openai.chat.completions.create(
+                model="gpt-4o-2024-11-20",
                 messages=[
                     {"role": "user", "content": prompt}
                 ]
@@ -183,14 +179,14 @@ def structure_article_plan(plan: str, length: ArticleLength = ArticleLength.LONG
             ArticleLength.MEDIUM: """Create an article structure with up to 3 main headings. Do not include subheadings.""",
             ArticleLength.LONG: """Create a full article structure with main headings, subheadings, and sub-subheadings."""
         }
-
+        
         # Select the appropriate response format based on length
         response_format = {
             ArticleLength.SHORT: ShortArticleStructure,
             ArticleLength.MEDIUM: MediumArticleStructure,
             ArticleLength.LONG: LongArticleStructure
         }[length]
-
+        
         # Add length guidance to the system prompt
         system_prompt = f"""You are an expert at structuring articles. 
         {length_instructions[length]}
@@ -208,8 +204,8 @@ def structure_article_plan(plan: str, length: ArticleLength = ArticleLength.LONG
         
         For a short article:
         - Just paragraphs, no headings"""
-
-        completion = client.beta.chat.completions.parse(
+        
+        completion = openai.beta.chat.completions.parse(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -528,8 +524,8 @@ def apply_style_transfer(content: str, style_name: str = "new_yorker") -> str:
                     
                     Do not return any content other than the rewritten content."""
 
-                completion = client.chat.completions.create(
-                    model="o1-preview",
+                completion = openai.chat.completions.create(
+                    model="gpt-4o-2024-11-20",
                     messages=[{"role": "user", "content": prompt}]
                 )
                 
@@ -604,6 +600,8 @@ def write_section(
             Example of the style:
             {style_details.example}
 
+            You may not use any of the following words or phrases: {', '.join(FORBIDDEN_WORDS)}
+
             Write in clear, distinct paragraphs.
             Do not include any headers or additional formatting.
             
@@ -674,8 +672,8 @@ def write_section(
                 )
                 generated_content = completion.content[0].text.strip()
             else:
-                completion = client.chat.completions.create(
-                    model="o1-preview",
+                completion = openai.chat.completions.create(
+                    model="gpt-4o-2024-11-20",
                     messages=[{"role": "user", "content": prompt}],
                 )
                 generated_content = completion.choices[0].message.content.strip()

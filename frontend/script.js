@@ -235,6 +235,7 @@ function writeArticle() {
     }));
 
     eventSource.onmessage = function(event) {
+        console.log('Received event data:', event.data);
         const data = JSON.parse(event.data);
 
         if (data.type === 'plan') {
@@ -247,16 +248,14 @@ function writeArticle() {
             updateArticleOutput(data.content);
             document.querySelector('.written-article').classList.remove('loading');
             showTryAgainButton();
+        } else if (data.type === 'error') {
+            console.error('Error:', data.content);
+            eventSource.close();
+            alert('An error occurred while generating the article.');
+            document.querySelectorAll('.panel').forEach(panel => {
+                panel.classList.remove('loading');
+            });
         }
-    };
-
-    eventSource.onerror = function(event) {
-        console.error('Error event:', event);
-        eventSource.close();
-        alert('An error occurred while generating the article.');
-        document.querySelectorAll('.panel').forEach(panel => {
-            panel.classList.remove('loading');
-        });
     };
 
     eventSource.addEventListener('end', function(event) {
@@ -266,6 +265,15 @@ function writeArticle() {
             panel.classList.remove('loading');
         });
     });
+
+    eventSource.onerror = function(event) {
+        console.error('Error event:', event);
+        eventSource.close();
+        alert('An error occurred while generating the article.');
+        document.querySelectorAll('.panel').forEach(panel => {
+            panel.classList.remove('loading');
+        });
+    };
 }
 
 // Initialize when DOM is loaded
