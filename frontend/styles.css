@@ -34,7 +34,7 @@ h1 {
     font-family: var(--font-serif);
     font-size: 2rem;
     color: var(--text-color);
-    margin-bottom: 3rem;
+    margin-bottom: 1rem;
     text-align: center;
     letter-spacing: -0.02em;
 }
@@ -52,7 +52,7 @@ p {
 
 .input-container {
     width: 100%;
-    max-width: 900px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 2rem;
     border: 1px solid var(--border-color);
@@ -194,10 +194,6 @@ textarea#topic:focus {
     font-weight: normal;
 }
 
-.panel-content {
-    padding: 2rem 0;
-}
-
 .written-article {
     width: 100%;
     max-width: 900px;
@@ -206,11 +202,6 @@ textarea#topic:focus {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 2rem;
-}
-
-.written-article .panel-content {
-    padding: 2rem 0;
-    width: 100%;
 }
 
 /* Markdown content styling */
@@ -479,15 +470,6 @@ textarea#topic:focus {
     border: 1px solid var(--border-color);
 }
 
-/* Update input container styles */
-.input-container {
-    margin-bottom: 2rem;
-    padding: 2rem;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background-color: #fafafa;
-}
-
 /* Update style info styles */
 .style-info {
     font-size: 0.95rem;
@@ -546,10 +528,6 @@ textarea#topic:focus {
         margin-bottom: 2rem;
     }
     
-    .input-container {
-        margin-bottom: 2rem;
-        padding-bottom: 2rem;
-    }
 }
 
 /* Add styles for the dropdown options */
@@ -559,14 +537,6 @@ textarea#topic:focus {
     font-family: var(--font-sans);
 }
 
-/* Add more visual separation between sections */
-.input-container {
-    margin-bottom: 4rem;
-    padding: 2rem;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background-color: #fafafa;
-}
 
 /* Make the input area more prominent */
 .input-section {
@@ -756,16 +726,6 @@ textarea#topic {
     width: 100%;
 }
 
-/* Update input styles */
-.input-container {
-    width: 100%;
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 2rem;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background-color: #fafafa;
-}
 
 textarea#topic {
     min-height: 100px;

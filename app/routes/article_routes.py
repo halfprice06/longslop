@@ -9,7 +9,8 @@ from app.services.llm_service import (
     structure_article_plan,
     write_full_article, 
     format_written_content,
-    AVAILABLE_STYLES
+    AVAILABLE_STYLES,
+    critique_and_elaborate_article_plan
 )
 from app.schemas import ArticleLength
 
@@ -42,7 +43,6 @@ async def write_article_stream(
             plan_data = json.dumps({"type": "plan", "content": plan})
             yield f"data: {plan_data}\n\n"
             
-            # Simulate async delay (if needed)
             await asyncio.sleep(1)
             
             # Structure the plan
@@ -53,14 +53,30 @@ async def write_article_stream(
             })
             yield f"data: {outline_data}\n\n"
             
-            # Simulate async delay (if needed)
             await asyncio.sleep(1)
             
-            # Write the full article
+            # Critique and elaborate on the plan
+            revised_plan = critique_and_elaborate_article_plan(topic, plan, structured_plan, article_length, provider)
+            revised_plan_data = json.dumps({"type": "revised_plan", "content": revised_plan})
+            yield f"data: {revised_plan_data}\n\n"
+            
+            await asyncio.sleep(1)
+            
+            # Re-structure the revised plan
+            revised_structured_plan = structure_article_plan(revised_plan, article_length)
+            revised_outline_data = json.dumps({
+                "type": "revised_outline",
+                "content": revised_structured_plan.model_dump()
+            })
+            yield f"data: {revised_outline_data}\n\n"
+            
+            await asyncio.sleep(1)
+            
+            # Write the full article using the revised structured plan
             written_article = write_full_article(
                 topic, 
-                plan, 
-                structured_plan, 
+                revised_plan, 
+                revised_structured_plan, 
                 style=style, 
                 provider=provider,
                 include_headers=includeHeaders

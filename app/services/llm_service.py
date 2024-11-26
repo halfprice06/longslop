@@ -10,6 +10,11 @@ from pydantic import BaseModel
 import re
 from anthropic import Anthropic
 from typing import Literal
+import json
+from app.database import ArticleDB
+
+# Initialize the database
+db = ArticleDB()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -89,25 +94,27 @@ def generate_article_plan(
         # Define length-specific instructions
         length_instructions = {
             ArticleLength.SHORT: """
-                Plan a concise article of around 500-800 words.
-                Focus on the core message without separate sections or headings.
-                The article should make one clear point effectively.
-            """,
-            ArticleLength.MEDIUM: """
-                Plan a medium-length article of around 1000-1500 words.
-                Include 2-3 main sections that build your argument.
-                Each section should flow naturally into the next.
-            """,
-            ArticleLength.LONG: """
-                Plan a comprehensive longform article of 2000+ words.
-                Include 3-5 main sections with potential subsections.
-                Allow space for detailed exploration of complex ideas.
-            """
-        }
+                Plan a concise article or short story around 500-1000 words.
+                    Focus on delivering the core message or narrative without separate sections or headings.
+                    The piece should have a clear and impactful point or theme.
+                """,
+                ArticleLength.MEDIUM: """
+                    Plan a medium-length article or short story of approximately 1000-2000 words.
+                    For articles, include 2-3 main sections that build your argument.
+                    For short stories, outline key plot points with character development.
+                    Ensure each section or plot point flows naturally into the next.
+                """,
+                ArticleLength.LONG: """
+                    Plan a comprehensive longform article or short story of 2000+ words.
+                    For articles, include 3-5 main sections with potential subsections for detailed analysis.
+                    For short stories, develop a complex narrative with multiple characters, subplots, and detailed exploration of themes.
+                    Allow space for in-depth exploration of ideas or intricate storytelling elements. Describe specific scenes in the order they occur.
+                """
+            }
         
         logger.info(f"Generating {length.value} article plan for topic: {topic} in {style.name} style using {provider}")
         
-        prompt = f"""You are an expert article planner for {style.name}. You are planning a {length.value} article that matches their distinctive style and editorial approach.
+        prompt = f"""You are an expert article or short story planner for {style.name}. You are planning a {length.value} article or short story that matches their distinctive style and editorial approach.
 
         Style Description: {style.description}
 
@@ -117,9 +124,9 @@ def generate_article_plan(
         Length Requirements:
         {length_instructions[length]}
 
-        Create a detailed plan for an article about: {topic}
+        Create a detailed plan for an article or short story about: {topic}
         
-        Your suggested article title should match {style.name}'s style perfectly. Consider these characteristics for titles:
+        Your suggested article title or short story title should match {style.name}'s style perfectly. Consider these characteristics for titles:
 
         1. Brevity and Precision
         Titles should be concise yet evocative, capturing the essence without being verbose.
@@ -139,7 +146,7 @@ def generate_article_plan(
         6. Thematic Consistency
         Ensure the title reflects the central theme while maintaining the publication's style.
 
-        Plan the article to fully embrace {style.name}'s distinctive voice and approach throughout.
+        Plan the article or short story to fully embrace {style.name}'s distinctive voice and approach throughout.
         """
 
         if provider == "anthropic":
@@ -150,7 +157,7 @@ def generate_article_plan(
                 ],
                 max_tokens=8000
             )
-            return completion.content[0].text
+            output_text = completion.content[0].text.strip()
         else:
             completion = openai.chat.completions.create(
                 model="gpt-4o-2024-11-20",
@@ -158,7 +165,12 @@ def generate_article_plan(
                     {"role": "user", "content": prompt}
                 ]
             )
-            return completion.choices[0].message.content
+            output_text = completion.choices[0].message.content.strip()
+
+        # Log the input prompt and output text
+        db.save_llm_call_log(prompt, output_text)
+
+        return output_text
 
     except Exception as e:
         log_api_error('generate_article_plan', e, 
@@ -175,9 +187,9 @@ def structure_article_plan(plan: str, length: ArticleLength = ArticleLength.LONG
         
         # Adjust the system prompt based on length
         length_instructions = {
-            ArticleLength.SHORT: """Create a simple article structure with just paragraphs - no headings or sections.""",
-            ArticleLength.MEDIUM: """Create an article structure with up to 3 main headings. Do not include subheadings.""",
-            ArticleLength.LONG: """Create a full article structure with main headings, subheadings, and sub-subheadings."""
+            ArticleLength.SHORT: """Create a simple article or short story structure with just paragraphs - no headings or sections.""",
+            ArticleLength.MEDIUM: """Create an article or short story structure with up to 3 main headings. Do not include subheadings.""",
+            ArticleLength.LONG: """Create a full article or short story structure with main headings, subheadings, and sub-subheadings."""
         }
         
         # Select the appropriate response format based on length
@@ -193,27 +205,34 @@ def structure_article_plan(plan: str, length: ArticleLength = ArticleLength.LONG
         Convert the given plan into a structured outline. 
         You aren't writing content at this stage, you are giving the outline of what each section and paragraph will be about.
         
-        For a long article:
+        For a long article or short story:
         - Include 3-5 main headings
         - Each main heading can have 2-3 subheadings
         - Each subheading can have 1-2 sub-subheadings
         
-        For a medium article:
+        For a medium article or short story:
         - Include 2-3 main headings
         - No subheadings
         
-        For a short article:
+        For a short article or short story:
         - Just paragraphs, no headings"""
         
+        # Create the full prompt by combining system prompt and user content
+        full_prompt = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": plan}
+        ]
+
+        # Log the input prompt
+        db.save_llm_call_log(json.dumps(full_prompt), '')
+
+        # Call the LLM API
         completion = openai.beta.chat.completions.parse(
             model="gpt-4o",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": plan}
-            ],
+            messages=full_prompt,
             response_format=response_format
         )
-        
+
         # Handle potential refusal
         if completion.choices[0].message.refusal:
             refusal_msg = completion.choices[0].message.refusal
@@ -222,7 +241,10 @@ def structure_article_plan(plan: str, length: ArticleLength = ArticleLength.LONG
             
         # Get the parsed response
         structured_content = completion.choices[0].message.parsed
-        
+
+        # Log the output
+        db.save_llm_call_log(json.dumps(full_prompt), json.dumps(structured_content.model_dump()))
+
         # Create the final ArticleStructure
         article_structure = ArticleStructure(
             length=length,
@@ -479,7 +501,56 @@ AVAILABLE_STYLES = {
         name="Carl Sagan",
         description="""Combines scientific accuracy with poetic wonder and philosophical reflection. Uses cosmic scale to contextualize human experience. Employs vivid analogies to make abstract concepts concrete. Frequently references the scientific method and empirical thinking. Balances technical explanations with emotional resonance. Emphasizes human connection to the cosmos and natural world. Features recurring phrases that capture cosmic wonder ("billions and billions"). Maintains optimism about human potential while acknowledging our limitations. Integrates historical perspectives on scientific discovery.""",
         example="""We are all made of star stuff. The carbon in our cells, the iron in our blood, the calcium in our bones—all were forged in the nuclear furnaces of ancient stars that exploded billions of years before our solar system formed. When we look up at the night sky, we are, in a very real sense, looking at our origins. The light that reaches us from the Andromeda Galaxy left its source two and a half million years ago, when our ancestors were just learning to walk upright. In that sense, astronomy is a form of time travel, allowing us to peer back through the cosmic depths to witness the universe as it once was."""
-    )
+    ), 
+
+    "edgar_allan_poe": StyleTransfer(
+        name="Edgar Allan Poe",
+        description="""Poe's style is characterized by its gothic atmosphere, intricate descriptions, and exploration of the macabre and psychological. His writing often delves into themes of death, madness, and the supernatural, employing a rich, ornate vocabulary that heightens the sense of dread and mystery. Poe's use of first-person narration creates an intimate, confessional tone, drawing readers into the narrator's often unreliable perspective. Repetition, alliteration, and rhythm are used to build tension and evoke a haunting, musical quality. His stories and poems frequently feature vivid imagery and symbolic motifs, such as ravens, shadows, and decaying mansions, which contribute to their eerie and otherworldly ambiance.""",
+        example="""Once upon a midnight dreary, while I pondered, weak and weary,  
+                Over many a quaint and curious volume of forgotten lore—  
+                While I nodded, nearly napping, suddenly there came a tapping,  
+                As of some one gently rapping, rapping at my chamber door.  
+                "'Tis some visitor," I muttered, "tapping at my chamber door—  
+                Only this and nothing more."""
+                    ),
+
+    "nathaniel_hawthorne": StyleTransfer(
+        name="Nathaniel Hawthorne",
+        description="""Hawthorne's style is marked by its moral and allegorical depth, exploring themes of sin, guilt, and redemption within the context of Puritan New England. His prose is formal and reflective, often employing archaic language and biblical allusions to evoke a sense of historical authenticity. Hawthorne's narratives frequently feature symbolic imagery, such as light and shadow, to underscore the inner struggles of his characters. His use of ambiguity and psychological insight invites readers to interpret the deeper meanings of his stories. The tone is often somber and contemplative, with a focus on the complexities of human nature and the consequences of moral choices.""",
+        example="""A throng of bearded men, in sad-colored garments and gray, steeple-crowned hats, intermixed with women, some wearing hoods, and others bareheaded, was assembled in front of a wooden edifice, the door of which was heavily timbered with oak, and studded with iron spikes. The founders of a new colony, whatever Utopia of human virtue and happiness they might originally project, have invariably recognized it among their earliest practical necessities to allot a portion of the virgin soil as a cemetery, and another portion as the site of a prison."""
+    ),
+
+    "isaac_asimov": StyleTransfer(
+        name="Isaac Asimov",
+        description="""Asimov's style is defined by its clarity, logic, and focus on scientific and philosophical ideas. His writing often explores the relationship between humanity and technology, particularly through the lens of robotics and artificial intelligence. Asimov's prose is straightforward and unadorned, prioritizing the communication of complex ideas over literary flourish. Dialogue is used extensively to advance the plot and explore ethical dilemmas, often featuring characters who are scientists, engineers, or intellectuals. His stories frequently incorporate elements of mystery and problem-solving, with a focus on rationality and the application of scientific principles to resolve conflicts.""",
+        example="""The Three Laws of Robotics:  
+                1. A robot may not injure a human being or, through inaction, allow a human being to come to harm.  
+                2. A robot must obey the orders given it by human beings except where such orders would conflict with the First Law.  
+                3. A robot must protect its own existence as long as such protection does not conflict with the First or Second Law.  
+
+                These laws were built into the very positronic brains of every robot, and yet, here I was, staring at a robot that had seemingly violated the First Law. The question was not just how, but why."""
+                    ),
+
+    "ray_bradbury": StyleTransfer(
+        name="Ray Bradbury",
+        description="""Bradbury's style is poetic and evocative, blending vivid imagery with a deep sense of nostalgia and wonder. His writing often explores themes of technology, human connection, and the fragility of the natural world, with a focus on the emotional and psychological impact of progress. Bradbury's prose is rich with metaphor and simile, creating a dreamlike quality that immerses readers in his imaginative worlds. His characters are often ordinary people grappling with extraordinary circumstances, and his stories frequently carry a moral or cautionary message. The tone ranges from whimsical and hopeful to dark and foreboding, reflecting the duality of human nature and the consequences of our choices.""",
+        example="""It was a pleasure to burn. It was a special pleasure to see things eaten, to see things blackened and changed. With the brass nozzle in his fists, with this great python spitting its venomous kerosene upon the world, the blood pounded in his head, and his hands were the hands of some amazing conductor playing all the symphonies of blazing and burning to bring down the tatters and charcoal ruins of history."""
+    ),
+
+    "shakespeare": StyleTransfer(
+        name="William Shakespeare",
+        description="""Shakespeare's style is renowned for its poetic brilliance, masterful use of iambic pentameter, and profound exploration of human nature. His writing features a rich vocabulary, inventive wordplay, and a deep understanding of rhythm and sound. Shakespeare's works often employ soliloquies and asides to reveal characters' inner thoughts and motivations, creating a sense of intimacy with the audience. His use of metaphor, simile, and imagery is unparalleled, bringing to life themes of love, ambition, betrayal, and mortality. Shakespeare's plays and sonnets are marked by their timelessness, capturing universal truths about the human condition with wit, wisdom, and emotional depth.""",
+        example="""To be, or not to be, that is the question:  
+        Whether 'tis nobler in the mind to suffer  
+        The slings and arrows of outrageous fortune,  
+        Or to take arms against a sea of troubles  
+        And by opposing end them. To die: to sleep;  
+        No more; and by a sleep to say we end  
+        The heart-ache and the thousand natural shocks  
+        That flesh is heir to, 'tis a consummation  
+        Devoutly to be wish'd."""
+            )
+
 
 }
 
@@ -524,6 +595,10 @@ def apply_style_transfer(content: str, style_name: str = "new_yorker") -> str:
                     
                     Do not return any content other than the rewritten content."""
 
+                # Log the input prompt
+                db.save_llm_call_log(prompt, '')
+
+                # Call the LLM API
                 completion = openai.chat.completions.create(
                     model="gpt-4o-2024-11-20",
                     messages=[{"role": "user", "content": prompt}]
@@ -531,6 +606,9 @@ def apply_style_transfer(content: str, style_name: str = "new_yorker") -> str:
                 
                 styled_content = completion.choices[0].message.content.strip()
                 
+                # Log the output
+                db.save_llm_call_log(prompt, styled_content)
+
                 # Check for forbidden words
                 has_forbidden, found_words = check_forbidden_words(styled_content)
                 
@@ -662,6 +740,9 @@ def write_section(
             {section_desc}
             """
 
+            # Log the input prompt
+            db.save_llm_call_log(prompt, '')
+
             if provider == "anthropic":
                 completion = anthropic_client.messages.create(
                     model="claude-3-5-sonnet-latest",
@@ -678,6 +759,9 @@ def write_section(
                 )
                 generated_content = completion.choices[0].message.content.strip()
             
+            # Log the output
+            db.save_llm_call_log(prompt, generated_content)
+
             # Apply style transfer (which now handles forbidden words)
             styled_content = apply_style_transfer(generated_content, style)
             
@@ -751,19 +835,32 @@ def write_full_article(
     provider: ProviderType = "openai",
     include_headers: bool = True
 ) -> ArticleStructure:
-    """Write the entire article based on its length structure"""
+    """Write the entire article based on its length structure after critique and restructuring."""
     try:
-        written_article = ArticleStructure(
+        # Critique and elaborate on the plan
+        revised_plan = critique_and_elaborate_article_plan(
+            topic,
+            original_plan,
+            structured_plan,
             length=structured_plan.length,
-            content=structured_plan.content.model_copy(deep=True)
+            provider=provider
         )
-        
-        logger.info(f"Starting full article writing process for {structured_plan.length} article")
+
+        # Re-structure the revised plan
+        revised_structured_plan = structure_article_plan(revised_plan, structured_plan.length)
+
+        # Proceed with writing the article using the revised structured plan
+        written_article = ArticleStructure(
+            length=revised_structured_plan.length,
+            content=revised_structured_plan.content.model_copy(deep=True)
+        )
+
+        logger.info(f"Starting full article writing process for {revised_structured_plan.length} article")
         
         if isinstance(written_article.content, ShortArticleStructure):
             # Write short article in one shot using "content" path
             paragraphs = write_section(
-                topic, original_plan, structured_plan, written_article, ["content"], style=style, provider=provider
+                topic, original_plan, revised_structured_plan, written_article, ["content"], style=style, provider=provider
             )
             written_article.content.paragraphs = paragraphs
             
@@ -772,7 +869,7 @@ def write_full_article(
             if isinstance(written_article.content, MediumArticleStructure):
                 # Write introduction
                 intro_paragraphs = write_section(
-                    topic, original_plan, structured_plan, written_article,
+                    topic, original_plan, revised_structured_plan, written_article,
                     ["intro"], style=style, provider=provider
                 )
                 written_article.content.intro_paragraphs = intro_paragraphs
@@ -780,14 +877,14 @@ def write_full_article(
                 # Write main headings
                 for i, heading in enumerate(written_article.content.main_headings):
                     heading_paragraphs = write_section(
-                        topic, original_plan, structured_plan, written_article,
+                        topic, original_plan, revised_structured_plan, written_article,
                         ["main", str(i)], style=style, provider=provider
                     )
                     heading.paragraphs = heading_paragraphs
                 
                 # Write conclusion
                 conclusion_paragraphs = write_section(
-                    topic, original_plan, structured_plan, written_article,
+                    topic, original_plan, revised_structured_plan, written_article,
                     ["conclusion"], style=style, provider=provider
                 )
                 written_article.content.conclusion_paragraphs = conclusion_paragraphs
@@ -795,7 +892,7 @@ def write_full_article(
             elif isinstance(written_article.content, LongArticleStructure):
                 # Write introduction
                 intro_paragraphs = write_section(
-                    topic, original_plan, structured_plan, written_article, ["intro"], style=style, provider=provider
+                    topic, original_plan, revised_structured_plan, written_article, ["intro"], style=style, provider=provider
                 )
                 written_article.content.intro_paragraphs = intro_paragraphs
                 
@@ -803,7 +900,7 @@ def write_full_article(
                 for i, heading in enumerate(written_article.content.main_headings):
                     # Write main heading content
                     heading_paragraphs = write_section(
-                        topic, original_plan, structured_plan, written_article,
+                        topic, original_plan, revised_structured_plan, written_article,
                         ["main", str(i)], style=style, provider=provider
                     )
                     heading.paragraphs = heading_paragraphs
@@ -812,7 +909,7 @@ def write_full_article(
                     if heading.sub_headings:
                         for j, sub in enumerate(heading.sub_headings):
                             sub_paragraphs = write_section(
-                                topic, original_plan, structured_plan, written_article,
+                                topic, original_plan, revised_structured_plan, written_article,
                                 ["main", str(i), "sub", str(j)], style=style, provider=provider
                             )
                             sub.paragraphs = sub_paragraphs
@@ -821,7 +918,7 @@ def write_full_article(
                             if sub.sub_headings:
                                 for k, subsub in enumerate(sub.sub_headings):
                                     subsub_paragraphs = write_section(
-                                        topic, original_plan, structured_plan, written_article,
+                                        topic, original_plan, revised_structured_plan, written_article,
                                         ["main", str(i), "sub", str(j), "subsub", str(k)], 
                                         style=style, provider=provider
                                     )
@@ -829,7 +926,7 @@ def write_full_article(
                 
                 # Write conclusion
                 conclusion_paragraphs = write_section(
-                    topic, original_plan, structured_plan, written_article,
+                    topic, original_plan, revised_structured_plan, written_article,
                     ["conclusion"], style=style, provider=provider
                 )
                 written_article.content.conclusion_paragraphs = conclusion_paragraphs
@@ -843,3 +940,65 @@ def write_full_article(
                      length=structured_plan.length,
                      provider=provider)
         raise Exception(f"Failed to write full article: {str(e)}")
+
+def critique_and_elaborate_article_plan(
+    topic: str,
+    original_plan: str,
+    structured_plan: ArticleStructure,
+    length: ArticleLength = ArticleLength.LONG,
+    provider: ProviderType = "openai"
+) -> str:
+    """Critique and elaborate on the article plan to make it better."""
+    try:
+        logger.info(f"Critiquing and elaborating on the article plan.")
+
+        # Convert the structured plan to text to provide to the LLM
+        structured_plan_text = json.dumps(structured_plan.model_dump(), indent=2)
+
+        prompt = f"""
+        As an expert editor and planner, please critique and elaborate on the following article plan to improve its structure, coherence, and depth. Provide suggestions to make the article more compelling and comprehensive.
+
+        Original Topic: {topic}
+
+        Original Narrative Plan:
+        {original_plan}
+
+        Structured Plan:
+        {structured_plan_text}
+
+        Instructions:
+        - Identify any weaknesses or gaps in the plan.
+        - Suggest improvements or additions to enhance the article.
+        - Provide a revised narrative plan that incorporates these improvements.
+
+        Please return only the revised narrative plan.
+        """
+
+        # Log the input prompt
+        db.save_llm_call_log(prompt, '')
+
+        if provider == "anthropic":
+            completion = anthropic_client.messages.create(
+                model="claude-3-5-sonnet-latest",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=8000
+            )
+            revised_plan = completion.content[0].text.strip()
+        else:
+            completion = openai.chat.completions.create(
+                model="gpt-4o-2024-11-20",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            revised_plan = completion.choices[0].message.content.strip()
+
+        # Log the output
+        db.save_llm_call_log(prompt, revised_plan)
+
+        logger.info("Successfully critiqued and elaborated on the article plan.")
+        return revised_plan
+
+    except Exception as e:
+        log_api_error('critique_and_elaborate_article_plan', e)
+        raise Exception(f"Failed to critique and elaborate article plan: {str(e)}")

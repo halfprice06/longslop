@@ -1,6 +1,7 @@
 from typing import List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from enum import Enum
+from datetime import datetime
 
 # Base content models
 class SubSubHeading(BaseModel):
@@ -53,4 +54,9 @@ class ArticleStructure(BaseModel):
 class WrittenArticle(ArticleStructure):
     """Represents the fully written article with all content generated."""
     pass
+
+class LLMCallLog(BaseModel):
+    input_text: str
+    output_text: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
   

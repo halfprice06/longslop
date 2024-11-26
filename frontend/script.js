@@ -201,6 +201,40 @@ function updateStructuredOutput(content) {
     }
 }
 
+// Update function to handle the revised plan output
+function updateRevisedPlanOutput(content) {
+    const revisedPlanOutput = document.getElementById('revised-plan-output');
+    let processedContent = content
+        .replace(/<\/?p>/g, '')
+        .replace(/([^\n])\n([^\n])/g, '$1 $2')
+        .replace(/\n\n+/g, '\n\n')
+        .split('\n\n')
+        .filter(para => para.trim())
+        .map(para => para.trim())
+        .join('\n\n');
+
+    const htmlContent = md.render(processedContent);
+    revisedPlanOutput.innerHTML = htmlContent;
+}
+
+// Update function to handle the revised structured outline output
+function updateRevisedStructuredOutput(content) {
+    const revisedStructuredOutput = document.getElementById('revised-structured-output');
+
+    if (typeof content === 'object') {
+        const formattedJson = JSON.stringify(content, null, 2)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/(".*?")/g, '<span class="json-string">$1</span>')
+            .replace(/\b(true|false|null)\b/g, '<span class="json-keyword">$1</span>');
+        revisedStructuredOutput.innerHTML = `<pre>${formattedJson}</pre>`;
+    } else {
+        const htmlContent = md.render(content);
+        revisedStructuredOutput.innerHTML = htmlContent;
+    }
+}
+
 // Main Article Generation Function
 function writeArticle() {
     const topic = document.getElementById('topic').value;
@@ -219,11 +253,15 @@ function writeArticle() {
     // Clear previous outputs
     document.getElementById('narrative-output').innerHTML = '';
     document.getElementById('structured-output').innerHTML = '';
+    document.getElementById('revised-plan-output').innerHTML = '';
+    document.getElementById('revised-structured-output').innerHTML = '';
     document.getElementById('article-output').innerHTML = '';
 
     // Update the loading state selectors
     document.querySelector('.narrative-plan').classList.add('loading');
     document.querySelector('.structured-plan').classList.add('loading');
+    document.querySelector('.revised-plan').classList.add('loading');
+    document.querySelector('.revised-structured-plan').classList.add('loading');
     document.querySelector('.written-article').classList.add('loading');
 
     const eventSource = new EventSource('/api/v1/write-article-stream?' + new URLSearchParams({
@@ -244,6 +282,12 @@ function writeArticle() {
         } else if (data.type === 'outline') {
             updateStructuredOutput(data.content);
             document.querySelector('.structured-plan').classList.remove('loading');
+        } else if (data.type === 'revised_plan') {
+            updateRevisedPlanOutput(data.content);
+            document.querySelector('.revised-plan').classList.remove('loading');
+        } else if (data.type === 'revised_outline') {
+            updateRevisedStructuredOutput(data.content);
+            document.querySelector('.revised-structured-plan').classList.remove('loading');
         } else if (data.type === 'article') {
             updateArticleOutput(data.content);
             document.querySelector('.written-article').classList.remove('loading');

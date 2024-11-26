@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from app.routes.article_routes import router as article_router
+from app.database import ArticleDB
 import logging
 
 # Set up logging
@@ -10,6 +11,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+db = ArticleDB()  # Initialize the database
 
 # Configure CORS
 app.add_middleware(
@@ -37,6 +39,11 @@ async def root():
 async def internal_error_handler(request, exc):
     logger.error(f"Internal Server Error: {str(exc)}", exc_info=True)
     return {"detail": str(exc)}, 500
+
+@app.on_event("startup")
+async def startup_event():
+    # Ensure the database is connected and tables are created
+    db.create_tables()
 
 if __name__ == "__main__":
     import uvicorn
