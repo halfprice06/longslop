@@ -56,7 +56,7 @@ async def write_article_stream(
             await asyncio.sleep(1)
             
             # Critique and elaborate on the plan
-            revised_plan = critique_and_elaborate_article_plan(topic, plan, structured_plan, article_length, provider)
+            revised_plan = critique_and_elaborate_article_plan(topic, plan, structured_plan, style, article_length, provider)
             revised_plan_data = json.dumps({"type": "revised_plan", "content": revised_plan})
             yield f"data: {revised_plan_data}\n\n"
             

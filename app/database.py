@@ -193,10 +193,18 @@ class ArticleDB:
 
         return result 
 
-    def save_llm_call_log(self, input_text: str, output_text: str):
+    def save_llm_call_log(self, input_text: str | list, output_text: Any):
         """Save the input and output of an LLM call"""
         with self._lock:
             with self.create_connection() as conn:
+                # Convert input_text to string if it's a list
+                if isinstance(input_text, list):
+                    input_text = json.dumps(input_text)
+                
+                # Convert output_text to string if it's not already
+                if not isinstance(output_text, str):
+                    output_text = json.dumps(output_text)
+                    
                 conn.execute(
                     '''
                     INSERT INTO llm_calls (input_text, output_text)

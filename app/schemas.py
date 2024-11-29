@@ -1,27 +1,32 @@
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 from enum import Enum
 from datetime import datetime
 
+class Paragraph(BaseModel):
+    paragraph_description: str
+    must_include: str
+    text: Optional[str] = None
+
 # Base content models
 class SubSubHeading(BaseModel):
     title: str
-    paragraphs: List[str]
+    paragraphs: List[Paragraph]
 
 class SubHeading(BaseModel):
     title: str
-    paragraphs: List[str]
+    paragraphs: List[Paragraph]
     sub_headings: List[SubSubHeading]
 
 class MainHeading(BaseModel):
     title: str
-    paragraphs: List[str]
+    paragraphs: List[Paragraph]
     sub_headings: List[SubHeading]
 
 # Short article structure (no headings)
 class ShortArticleStructure(BaseModel):
     title: str
-    paragraphs: List[str]
+    paragraphs: List[Paragraph]
 
 # Medium article structure (headings but no subheadings)
 class MediumArticleStructure(BaseModel):
