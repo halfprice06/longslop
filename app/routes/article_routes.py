@@ -13,6 +13,7 @@ from app.services.llm_service import (
     critique_and_elaborate_article_plan
 )
 from app.schemas import ArticleLength
+from app.constants.writing_styles import AVAILABLE_STYLES  # Import the styles
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ async def write_article_stream(
             await asyncio.sleep(1)
             
             # Structure the plan
-            structured_plan = structure_article_plan(plan, article_length)
+            structured_plan = structure_article_plan(plan, article_length, provider)
             outline_data = json.dumps({
                 "type": "outline",
                 "content": structured_plan.model_dump()
@@ -63,7 +64,7 @@ async def write_article_stream(
             await asyncio.sleep(1)
             
             # Re-structure the revised plan
-            revised_structured_plan = structure_article_plan(revised_plan, article_length)
+            revised_structured_plan = structure_article_plan(revised_plan, article_length, provider)
             revised_outline_data = json.dumps({
                 "type": "revised_outline",
                 "content": revised_structured_plan.model_dump()
@@ -99,3 +100,7 @@ async def write_article_stream(
             yield f"data: {error_data}\n\n"
 
     return StreamingResponse(event_generator(), media_type='text/event-stream')
+
+@router.get("/api/v1/styles")
+async def get_styles():
+    return {key: style.model_dump() for key, style in AVAILABLE_STYLES.items()}

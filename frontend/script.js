@@ -5,14 +5,14 @@ const md = window.markdownit();
 async function loadStyles() {
     try {
         const response = await fetch('/api/v1/styles');
-        const styles = await response.json();
+        window.styles = await response.json();
         
         const styleSelect = document.getElementById('style-select');
         const styleInfo = document.querySelector('.style-info');
         
         // Update style info when selection changes
         styleSelect.addEventListener('change', () => {
-            const selectedStyle = styles[styleSelect.value];
+            const selectedStyle = window.styles[styleSelect.value];
             if (selectedStyle) {
                 styleInfo.innerHTML = `
                     <h3>${selectedStyle.name}</h3>
@@ -23,7 +23,7 @@ async function loadStyles() {
         });
         
         // Trigger initial style info display for the default selection
-        const defaultStyle = styles[styleSelect.value];
+        const defaultStyle = window.styles[styleSelect.value];
         if (defaultStyle) {
             styleInfo.innerHTML = `
                 <h3>${defaultStyle.name}</h3>

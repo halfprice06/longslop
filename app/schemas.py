@@ -31,9 +31,9 @@ class ShortArticleStructure(BaseModel):
 # Medium article structure (headings but no subheadings)
 class MediumArticleStructure(BaseModel):
     title: str
-    intro_paragraphs: List[str]
+    intro_paragraphs: List[Paragraph]
     main_headings: List[MainHeading]
-    conclusion_paragraphs: List[str]
+    conclusion_paragraphs: List[Paragraph]
 
 # Long article structure (full hierarchy)
 class LongArticleStructure(BaseModel):

@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 from anthropic import Anthropic
 from dotenv import load_dotenv
 import openai
+import instructor
 
 # Local imports
 from app.constants.forbidden_words import FORBIDDEN_WORDS
@@ -51,9 +52,14 @@ if os.getenv('DEBUG', 'false').lower() == 'true':
     logger.setLevel(logging.DEBUG)
 
 # Add Anthropic client initialization after OpenAI client
+anthropic_instructor_client = instructor.from_anthropic(Anthropic(
+    api_key=os.getenv("ANTHROPIC_API_KEY")
+))
+
 anthropic_client = Anthropic(
     api_key=os.getenv("ANTHROPIC_API_KEY")
 )
+
 
 # Add provider type
 ProviderType = Literal["openai", "anthropic"]
@@ -213,6 +219,8 @@ Allow space for in-depth exploration of ideas or intricate storytelling elements
         For short stories, make sure there is enough action and dialogue to keep the reader engaged. Describe every scene in great detail.
 
         Make sure in every scene you have completely anazlyed the characters and their motivations and specifically plan why they are taking specific actions. Think long term about the whole story when planning.
+
+        Make sure to bias each scene to contain a lot of character actions or dialogue. We don't want the story to drag. 
         """
 
         if provider == "anthropic":
@@ -249,7 +257,7 @@ Allow space for in-depth exploration of ideas or intricate storytelling elements
                      provider=provider)
         raise Exception(f"Failed to generate article plan: {str(e)}")
 
-def structure_article_plan(plan: str, length: ArticleLength = ArticleLength.LONG) -> ArticleStructure:
+def structure_article_plan(plan: str, length: ArticleLength = ArticleLength.LONG, provider: ProviderType = "openai") -> ArticleStructure:
     """Convert the narrative plan into a structured article outline"""
     try:
         logger.info(f"Converting narrative plan to structured outline with length: {length}")
@@ -303,21 +311,33 @@ def structure_article_plan(plan: str, length: ArticleLength = ArticleLength.LONG
             {"role": "user", "content": plan}
         ]
 
-        # Call the LLM API
-        completion = openai.beta.chat.completions.parse(
-            model="gpt-4o",
-            messages=full_prompt,
-            response_format=response_format
-        )
+        if provider == "anthropic":
+            completion = anthropic_instructor_client.messages.create(
+                model="claude-3-5-sonnet-latest",
+                system=system_prompt,
+                messages=[{"role": "user", "content": plan}],
+                max_tokens=8000, 
+                response_model=response_format
+            )
 
-        # Handle potential refusal
-        if completion.choices[0].message.refusal:
-            refusal_msg = completion.choices[0].message.refusal
-            logger.warning(f"Model refused to structure plan: {refusal_msg}")
-            raise Exception(f"Model refused to structure the article plan: {refusal_msg}")
+            # The completion is already the parsed model
+            structured_content = completion
+
+        else:
+            completion = openai.beta.chat.completions.parse(
+                model="gpt-4o",
+                messages=full_prompt,
+                response_format=response_format
+            )
+
+            # Handle potential refusal
+            if completion.choices[0].message.refusal:
+                refusal_msg = completion.choices[0].message.refusal
+                logger.warning(f"Model refused to structure plan: {refusal_msg}")
+                raise Exception(f"Model refused to structure the article plan: {refusal_msg}")
             
-        # Get the parsed response
-        structured_content = completion.choices[0].message.parsed
+            # Get the parsed response
+            structured_content = completion.choices[0].message.parsed
 
         # Log the output - convert structured_content to dict before saving
         db.save_llm_call_log(
@@ -429,6 +449,8 @@ def critique_and_elaborate_article_plan(
 
         Make sure in every scene you have completely anazlyed the characters and their motivations and specifically plan why they are taking specific actions. Think long term about the whole story when planning.
 
+        Make sure to bias each scene to contain a lot of character actions or dialogue. We don't want the story to drag. 
+
         Please return only the revised narrative plan.
         """
 
@@ -520,12 +542,13 @@ The rewritten content must:
 - Follow the description: {paragraph_description}
 - Must include: {must_include}
 
+Make sure to bias each scene to contain a lot of character actions or dialogue. We don't want the story to drag. 
+
 Previous version:
 
 {styled_content}
 
-
-Do not return any content other than the rewritten content."""
+Do not return any content other than the rewritten content. Do not include introductory text like 'Here is the rewritten content:, just return the rewritten text by itself."""
 
                 # Call the LLM API
                 if provider == "anthropic":
@@ -1007,6 +1030,10 @@ Please write the next section that:
 - Must include: {must_include}
 
 Make sure the next section flows naturally from the previous content.
+
+Make sure to bias each scene to contain a lot of character actions or dialogue. We don't want the story to drag. 
+
+Do not return any text other than the next section of the article or short story.
 
 </instructions>
 """
