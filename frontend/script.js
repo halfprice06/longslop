@@ -292,6 +292,16 @@ function writeArticle() {
             updateArticleOutput(data.content);
             document.querySelector('.written-article').classList.remove('loading');
             showTryAgainButton();
+            // Show audio panel and status
+            document.querySelector('.audio-panel').style.display = 'block';
+            document.getElementById('audio-status').textContent = 'Generating audio...';
+        } else if (data.type === 'audio') {
+            // Update audio player with the generated audio file
+            const audioPlayer = document.getElementById('article-audio');
+            audioPlayer.src = data.content;
+            document.getElementById('audio-status').textContent = 'Audio ready!';
+        } else if (data.type === 'audio_error') {
+            document.getElementById('audio-status').textContent = 'Error generating audio: ' + data.content;
         } else if (data.type === 'error') {
             console.error('Error:', data.content);
             eventSource.close();

@@ -12,7 +12,10 @@ from dotenv import load_dotenv
 import openai
 import instructor
 
+
+
 # Local imports
+from app.services.audio_service import AudioService
 from app.constants.forbidden_words import FORBIDDEN_WORDS
 from app.constants.writing_styles import AVAILABLE_STYLES
 from app.database import ArticleDB
@@ -22,7 +25,10 @@ from app.schemas import (
     LongArticleStructure,
     MediumArticleStructure,
     ShortArticleStructure,
-    Paragraph
+    Paragraph,
+    SceneScript,
+    SceneLine, 
+    Scene
 )
 
 # Initialize the database
@@ -51,19 +57,20 @@ openai.api_key = api_key
 if os.getenv('DEBUG', 'false').lower() == 'true':
     logger.setLevel(logging.DEBUG)
 
-# Add Anthropic client initialization after OpenAI client
-anthropic_instructor_client = instructor.from_anthropic(Anthropic(
-    api_key=os.getenv("ANTHROPIC_API_KEY")
-))
 
 anthropic_client = Anthropic(
     api_key=os.getenv("ANTHROPIC_API_KEY")
 )
 
+# Add Anthropic client initialization after OpenAI client
+anthropic_instructor_client = instructor.from_anthropic(Anthropic(
+    api_key=os.getenv("ANTHROPIC_API_KEY")
+))
 
 # Add provider type
 ProviderType = Literal["openai", "anthropic"]
 
+audio_service = AudioService()
 
 def check_forbidden_words(text: str) -> Tuple[bool, List[str]]:
     """
@@ -140,17 +147,17 @@ def generate_article_plan(
         # Define length-specific instructions
         length_instructions = {
             ArticleLength.SHORT: """
-Plan a concise article or short story around 500-1000 words.
+Plan a concise article or short-story. 
 The piece should have a clear and impactful point or theme.
                 """,
                 ArticleLength.MEDIUM: """
-Plan a medium-length article or short story of approximately 1000-2000 words.
+Plan a medium-length article or short-story.
 For articles, include 2-3 main sections that build your argument.
 For short stories, outline key plot points with character development.
 Ensure each section or plot point flows naturally into the next.
                 """,
                 ArticleLength.LONG: """
-Plan a comprehensive longform article or short story of 2000+ words.
+Plan a comprehensive longform article or long short-story. 
 For articles, include 3-5 main sections with potential subsections for detailed analysis.
 For short stories, develop a complex narrative with multiple characters, subplots, and detailed exploration of themes.
 Allow space for in-depth exploration of ideas or intricate storytelling elements. Describe specific scenes in the order they occur.
@@ -399,15 +406,12 @@ def critique_and_elaborate_article_plan(
 
         - Strong Theme
 
-
         Every element of the story must tie back to the central theme
         Must be succinct and focused - no room for ambiguity
         Theme acts as a container that holds all elements together
         Needs to be memorable
 
-
         - Complete Plot
-
 
         Must have beginning, middle, and end
         Should include a character arc
@@ -415,9 +419,7 @@ def critique_and_elaborate_article_plan(
         Must be plausible and logical, even in fantastical settings
         Can use traditional story structures like three-act format
 
-
         - Focused Climax - THIS IS THE MOST IMPORTANT PART
-
 
         Everything must lead to the climax
         Every word and element should work toward this destination
@@ -425,16 +427,13 @@ def critique_and_elaborate_article_plan(
         Once reached, the story ends
         No room for subplots or digressions
 
-
         - Human Connection
-
 
         Must explore some aspect of the human condition
         Should matter to both writer and reader
         Needs to touch on real human experiences and emotions
         Must be genuinely felt, not "faked"
         Should be relatable even if writing about non-human subjects
-
 
         - Originality
 
@@ -483,15 +482,14 @@ def critique_and_elaborate_article_plan(
         log_api_error('critique_and_elaborate_article_plan', e)
         raise Exception(f"Failed to critique and elaborate article plan: {str(e)}")
     
-
 def apply_style_transfer(
     content: str,
-    paragraph_description: str,
+    scene_description: str,
     must_include: str,
     style_name: str = "new_yorker",
     provider: ProviderType = "openai"
 ) -> str:
-    """Apply style transfer to the generated content, incorporating paragraph_description and must_include."""
+    """Apply style transfer to the generated content, incorporating scene_description and must_include."""
     try:
         style = AVAILABLE_STYLES.get(style_name.lower(), AVAILABLE_STYLES["new_yorker"])
         max_retries = 3
@@ -521,7 +519,7 @@ You may not use any of the following words or phrases: {', '.join(FORBIDDEN_WORD
 
 The rewritten content must:
 
-- Follow the description: {paragraph_description}
+- Follow the description: {scene_description}
 - Must include: {must_include}
 
 Original content:
@@ -539,7 +537,7 @@ You also may not use any of the following words or phrases: {', '.join(FORBIDDEN
 
 The rewritten content must:
 
-- Follow the description: {paragraph_description}
+- Follow the description: {scene_description}
 - Must include: {must_include}
 
 Make sure to bias each scene to contain a lot of character actions or dialogue. We don't want the story to drag. 
@@ -605,7 +603,6 @@ Do not return any content other than the rewritten content. Do not include intro
         logger.warning("Style transfer failed, returning original content")
         return content
 
-
 def get_section_description(plan: ArticleStructure, path: List[str]) -> str:
     """Get a description of the section we want to write based on the path"""
     if path[0] == "intro":
@@ -642,344 +639,106 @@ def get_section_description(plan: ArticleStructure, path: List[str]) -> str:
     
     raise ValueError(f"Invalid section path: {path}")
 
-# # Modify the write_section function to include style transfer
-# def write_section(
-#     topic: str,
-#     original_plan: str,
-#     structured_plan: ArticleStructure,
-#     written_content: ArticleStructure,
-#     section_path: List[str],
-#     style: str = "new_yorker",
-#     provider: ProviderType = "openai"
-# ) -> List[str]:
-#     """Write a specific section of the article or short story."""
-#     try:
-#         # Format the content that's been written so far
-#         formatted_content = format_written_content(written_content.content)
-        
-#         # Get the section description based on the structure type
-#         section_desc = get_section_description(structured_plan, section_path)
-        
-#         logger.info(f"Writing section with path: {section_path}")
+def extract_scene_script(scene_input: str, provider: ProviderType = "openai") -> SceneScript:
+    """Extract the scene script from the content"""
+    
+    # Define example format separately
+    example_format = '''{
+        "scene_title": "Scene 1",    
+        "paragraphs": [
+            {
+                "lines": [
+                    {"speaker": "John", "text": "Hello, how are you?"},
+                    {"speaker": "Narrator", "text": "said John."},
+                    {"speaker": "Jane", "text": "I'm fine, thank you."},
+                    {"speaker": "Narrator", "text": "said Jane."},
+                    {"speaker": "Narrator", "text": "They continued to talk as they walked down the street."},
+                    {"speaker": "Narrator", "text": "John turned to Jane and said,"},
+                    {"speaker": "John", "text": "I love you."},
+                    {"speaker": "Narrator", "text": "Jane blushed and said,"},
+                    {"speaker": "Jane", "text": "I love you too."},
+                    {"speaker": "Narrator", "text": "They shared a kiss and continued to walk."}
+                ]
+            }
+        ]
+    }'''
 
-#         logger.debug(f"Section description: {section_desc}")
-        
-#         # Get the selected style details
-#         style_details = AVAILABLE_STYLES.get(style.lower(), AVAILABLE_STYLES["new_yorker"])
-        
-#         try:
-#             prompt = f"""
-#             <style guide> 
-            
-#             You are an expert authoer writing in the style of {style_details.name}.
-            
-#             Style Description: {style_details.description}
-            
-#             Example of the style:
-#             {style_details.example}
+    prompt = f"""Take the following written content and extract it as a scene script as a list of paragraphs containing conversation turns and narrator commentary. Follow the following format: 
+    
+    {example_format}
 
-#             You may not use any of the following words or phrases: {', '.join(FORBIDDEN_WORDS)}
+    Scene content input: 
 
-#             Write in clear, distinct paragraphs.
+    {scene_input}
 
-#             Do not include any headers, but you may use markdown to apply bolding, italics, and underlining.
-            
-#             </style guide>             
-            
-#             <instructions>
+    </end scene>
 
-#             Write the next (or sometimes first)section of the article or short story, maintaining consistency with previously written content and the overall plan.
+    Each paragraph in the input text should be its own paragraph in the json output. 
 
-#             Original Topic: 
-            
-#             {topic}
-            
-#             Original Plan: 
-            
-#             {original_plan}
+    It's going to feel awkward to write in the JSON format, but you have to extract the content exactly as written just as JSON. For example, if the input content were "Net's caught again," Danny said. His neck was tight and the tendons showed.", you must write it like:
 
-#             Structured Plan for the Article or Short Story: 
-            
-#             {structured_plan.model_dump_json()}
+    {{"speaker": "Danny", "text": "Net's caught again,"}}
+    {{"speaker": "Narrator", "text": "Danny said. His neck was tight and the tendons showed."}}
 
-#             Content Written So Far:
+    In other words, you have to capture when the narrator explains who's speaking. Make sure to end regular speaking sentences with a comma so the Narrator can finish the sentence, unless the speaker is asking a question or exclaiming.We are going to concatenate these conversation turns together later, but they won't have the speaker labels, so we need the Narrator's portion to capture who's speaking. 
+    """
 
-#             {formatted_content}
-
-#             Please write the following section:
-
-#             {section_desc}
-
-#             """
-
-#             if provider == "anthropic":
-#                 completion = anthropic_client.messages.create(
-#                     model="claude-3-5-sonnet-latest",
-#                     messages=[
-#                         {"role": "user", "content": prompt}
-#                     ], 
-#                     max_tokens=8000
-#                 )
-#                 generated_content = completion.content[0].text.strip()
-#             else:
-#                 completion = openai.chat.completions.create(
-#                     model="gpt-4o-2024-11-20",
-#                     messages=[{"role": "user", "content": prompt}],
-#                 )
-#                 generated_content = completion.choices[0].message.content.strip()
-            
-#             # Log the output
-#             db.save_llm_call_log(
-#                 [{"role": "user", "content": prompt}], 
-#                 generated_content
-#             )
-
-#             # Apply style transfer (which now handles forbidden words)
-#             styled_content = apply_style_transfer(generated_content, style)
-            
-#             # Split into paragraphs and process
-#             paragraphs = [p.strip() for p in styled_content.split('\n\n') if p.strip()]
-            
-#             # Add marker for paragraphs that should have capitalized first lines
-#             paragraphs[0] = "§CAPS§" + paragraphs[0]
-            
-#             logger.debug(f"Successfully wrote section {section_path}")
-
-#             return paragraphs
-                
-#         except Exception as api_error:
-#             log_api_error('write_section.api_call', api_error,
-#                          section_path=section_path,
-#                          provider=provider)
-#             raise Exception(f"API call failed: {str(api_error)}")
-            
-#     except Exception as e:
-#         log_api_error('write_section', e, 
-#                      section_path=section_path,
-#                      topic=topic,
-#                      style=style,
-#                      provider=provider)
-#         raise Exception(f"Failed to write section {section_path}: {str(e)}")
-
-# Modify the write_full_article function signature and implementation
-def write_full_article(
-    topic: str,
-    original_plan: str,
-    structured_plan: ArticleStructure,
-    style: str = "new_yorker",
-    provider: ProviderType = "openai",
-    include_headers: bool = True
-) -> ArticleStructure:
-    """Write the entire article or short story, generating each paragraph individually."""
-    try:
-        # Create a deep copy of the structured plan to preserve the original
-        written_article = ArticleStructure(
-            length=structured_plan.length,
-            content=structured_plan.content.model_copy(deep=True)
+    if provider == "anthropic":
+        completion = anthropic_instructor_client.messages.create(
+            model="claude-3-5-sonnet-latest",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=8000, 
+            response_model=SceneScript
         )
 
-        logger.info(f"Starting full article writing process for {structured_plan.length} article, generating paragraphs individually")
+        # The completion is already the parsed model
+        scene_script = completion
 
-        if isinstance(written_article.content, ShortArticleStructure):
-            # Generate each paragraph individually
-            for idx, paragraph in enumerate(written_article.content.paragraphs):
-                paragraph_text = write_paragraph(
-                    topic, original_plan, structured_plan, written_article, paragraph, style=style, provider=provider
-                )
-                written_article.content.paragraphs[idx].text = paragraph_text
-
-        else:
-            # Handle medium and long articles
-            if isinstance(written_article.content, MediumArticleStructure):
-                # Write introduction paragraphs
-                for idx, paragraph in enumerate(written_article.content.intro_paragraphs):
-                    paragraph_text = write_paragraph(
-                        topic, original_plan, structured_plan, written_article,
-                        paragraph, style=style, provider=provider
-                    )
-                    written_article.content.intro_paragraphs[idx].text = paragraph_text
-
-                # Write main headings and their paragraphs
-                for heading in written_article.content.main_headings:
-                    for idx, paragraph in enumerate(heading.paragraphs):
-                        paragraph_text = write_paragraph(
-                            topic, original_plan, structured_plan, written_article,
-                            paragraph, style=style, provider=provider
-                        )
-                        heading.paragraphs[idx].text = paragraph_text
-
-                # Write conclusion paragraphs
-                for idx, paragraph in enumerate(written_article.content.conclusion_paragraphs):
-                    paragraph_text = write_paragraph(
-                        topic, original_plan, structured_plan, written_article,
-                        paragraph, style=style, provider=provider
-                    )
-                    written_article.content.conclusion_paragraphs[idx].text = paragraph_text
-
-            elif isinstance(written_article.content, LongArticleStructure):
-                # Write introduction paragraphs
-                for idx, paragraph in enumerate(written_article.content.intro_paragraphs):
-                    paragraph_text = write_paragraph(
-                        topic, original_plan, structured_plan, written_article, paragraph, style=style, provider=provider
-                    )
-                    written_article.content.intro_paragraphs[idx].text = paragraph_text
-
-                # Write main headings and their nested content
-                for heading in written_article.content.main_headings:
-                    # Write main heading paragraphs
-                    for idx, paragraph in enumerate(heading.paragraphs):
-                        paragraph_text = write_paragraph(
-                            topic, original_plan, structured_plan, written_article,
-                            paragraph, style=style, provider=provider
-                        )
-                        heading.paragraphs[idx].text = paragraph_text
-
-                    # Write subheadings
-                    for subheading in heading.sub_headings:
-                        for idx, paragraph in enumerate(subheading.paragraphs):
-                            paragraph_text = write_paragraph(
-                                topic, original_plan, structured_plan, written_article,
-                                paragraph, style=style, provider=provider
-                            )
-                            subheading.paragraphs[idx].text = paragraph_text
-
-                        # Write sub-subheadings
-                        for subsubheading in subheading.sub_headings:
-                            for idx, paragraph in enumerate(subsubheading.paragraphs):
-                                paragraph_text = write_paragraph(
-                                    topic, original_plan, structured_plan, written_article,
-                                    paragraph, style=style, provider=provider
-                                )
-                                subsubheading.paragraphs[idx].text = paragraph_text
-
-                # Write conclusion paragraphs
-                for idx, paragraph in enumerate(written_article.content.conclusion_paragraphs):
-                    paragraph_text = write_paragraph(
-                        topic, original_plan, structured_plan, written_article,
-                        paragraph, style=style, provider=provider
-                    )
-                    written_article.content.conclusion_paragraphs[idx].text = paragraph_text
-
-        logger.info(f"Successfully completed writing full article using {provider} with paragraph-level generation")
-        return written_article
-
-    except Exception as e:
-        log_api_error('write_full_article', e,
-                      topic=topic,
-                      length=structured_plan.length,
-                      provider=provider)
-        raise Exception(f"Failed to write full article: {str(e)}")
-
-
-def format_written_content(
-    written_article: Union[
-        ArticleStructure, ShortArticleStructure, MediumArticleStructure, LongArticleStructure
-    ],
-    include_headers: bool = True
-) -> str:
-    content = []
-
-    # Check if written_article is an ArticleStructure
-    if isinstance(written_article, ArticleStructure):
-        # Extract the content attribute
-        article_content = written_article.content
     else:
-        # It's already a specific article structure
-        article_content = written_article
+        completion = openai.beta.chat.completions.parse(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            response_format=SceneScript
+        )
 
-    # Add title if headers are included
-    if include_headers:
-        title = article_content.title
-        content.append(f"# {title}\n")
+        # Handle potential refusal
+        if completion.choices[0].message.refusal:
+            refusal_msg = completion.choices[0].message.refusal
+            logger.warning(f"Model refused to structure plan: {refusal_msg}")
+            raise Exception(f"Model refused to structure the article plan: {refusal_msg}")
+        
+        # Get the parsed response
+        scene_script = completion.choices[0].message.parsed
 
-    # Handle different article structures
-    if isinstance(article_content, ShortArticleStructure):
-        for paragraph in article_content.paragraphs:
-            if paragraph.text:
-                content.append(paragraph.text)
-    elif isinstance(article_content, MediumArticleStructure):
-        # Introduction
-        for paragraph in article_content.intro_paragraphs:
-            if paragraph.text:
-                content.append(paragraph.text)
-        content.append("")
+    # Log the output - convert structured_content to dict before saving
+    db.save_llm_call_log(
+        prompt, 
+        scene_script.model_dump()  # Convert to dict before saving
+    )
+   
+    logger.debug(f"Received structured response: {scene_script.model_dump_json()}")
 
-        # Main headings
-        for heading in article_content.main_headings:
-            if include_headers:
-                content.append(f"## {heading.title}")
-            for paragraph in heading.paragraphs:
-                if paragraph.text:
-                    content.append(paragraph.text)
-            content.append("")
-
-        # Conclusion
-        for paragraph in article_content.conclusion_paragraphs:
-            if paragraph.text:
-                content.append(paragraph.text)
-    elif isinstance(article_content, LongArticleStructure):
-        # Introduction
-        for paragraph in article_content.intro_paragraphs:
-            if paragraph.text:
-                content.append(paragraph.text)
-        content.append("")
-
-        # Main headings and nested content
-        for heading in article_content.main_headings:
-            if include_headers:
-                content.append(f"## {heading.title}")
-            for paragraph in heading.paragraphs:
-                if paragraph.text:
-                    content.append(paragraph.text)
-            content.append("")
-
-            for sub in heading.sub_headings:
-                if include_headers:
-                    content.append(f"### {sub.title}")
-                for paragraph in sub.paragraphs:
-                    if paragraph.text:
-                        content.append(paragraph.text)
-                content.append("")
-
-                for subsub in sub.sub_headings:
-                    if include_headers:
-                        content.append(f"#### {subsub.title}")
-                    for paragraph in subsub.paragraphs:
-                        if paragraph.text:
-                            content.append(paragraph.text)
-                    content.append("")
-
-        # Conclusion
-        for paragraph in article_content.conclusion_paragraphs:
-            if paragraph.text:
-                content.append(paragraph.text)
-    else:
-        # Handle any other cases if necessary
-        pass
-
-    # Process the content to apply special formatting (if any)
-    final_content = "\n".join(content).strip()
-    return final_content
+    return scene_script
 
 def write_paragraph(
     topic: str,
     original_plan: str,
     structured_plan: ArticleStructure,
     written_content: Union[ArticleStructure, ShortArticleStructure, MediumArticleStructure, LongArticleStructure],
-    paragraph: Paragraph,
+    scene: Scene,
     style: str = "new_yorker",
     provider: ProviderType = "openai"
 ) -> str:
-    """Write a specific paragraph of the article or short story."""
+    """Write a specific scene of the article or short story."""
     try:
         # Format the content that's been written so far
         formatted_content = format_written_content(written_content)
 
-        # Get the paragraph description and must_include information
-        paragraph_description = paragraph.paragraph_description
-        must_include = paragraph.must_include
+        # Get the scene description and must_include information
+        scene_description = scene.scene_description
+        must_include = scene.must_include
 
-        logger.info(f"Writing paragraph: {paragraph_description}")
+        logger.info(f"Writing scene: {scene_description}")
 
         # Get the selected style details
         style_details = AVAILABLE_STYLES.get(style.lower(), AVAILABLE_STYLES["new_yorker"])
@@ -1026,7 +785,7 @@ Content Written So Far:
 
 Please write the next section that:
 
-- Follows this description: {paragraph_description}
+- Follows this description: {scene_description}
 - Must include: {must_include}
 
 Make sure the next section flows naturally from the previous content.
@@ -1063,20 +822,253 @@ Do not return any text other than the next section of the article or short story
         # Apply style transfer (which handles forbidden words)
         styled_content = apply_style_transfer(
             content=generated_content,
-            paragraph_description=paragraph_description,
+            scene_description=scene_description,
             must_include=must_include,
             style_name=style,
             provider=provider
         )
 
-        logger.debug(f"Successfully wrote paragraph")
+        logger.debug(f"Successfully wrote scene")
 
         return styled_content
 
     except Exception as e:
         log_api_error('write_paragraph', e,
-                      paragraph_description=paragraph.paragraph_description,
+                      scene_description=scene.scene_description,
                       topic=topic,
                       style=style,
                       provider=provider)
-        raise Exception(f"Failed to write paragraph: {str(e)}")
+        raise Exception(f"Failed to write scene: {str(e)}")
+
+# Modify the write_full_article function signature and implementation
+def write_full_article(
+    topic: str,
+    original_plan: str,
+    structured_plan: ArticleStructure,
+    style: str = "new_yorker",
+    provider: ProviderType = "openai",
+    include_headers: bool = True
+) -> ArticleStructure:
+    """Write the entire article or short story, generating each paragraph individually."""
+    try:
+        # Create a deep copy of the structured plan to preserve the original
+        written_article = ArticleStructure(
+            length=structured_plan.length,
+            content=structured_plan.content.model_copy(deep=True)
+        )
+
+        logger.info(f"Starting full article writing process for {structured_plan.length} article, generating paragraphs individually")
+
+        if isinstance(written_article.content, ShortArticleStructure):
+            # Generate each scene individually
+            for idx, scene in enumerate(written_article.content.scenes):
+                scene_text = write_paragraph(
+                    topic, original_plan, structured_plan, written_article,
+                    scene, style=style, provider=provider
+                )
+                scene_script = extract_scene_script(scene_text, provider)
+                written_article.content.scenes[idx].text = scene_script.model_dump_json()
+
+        else:
+            # Handle medium and long articles
+            if isinstance(written_article.content, MediumArticleStructure):
+                # Write introduction paragraphs
+                for idx, scene in enumerate(written_article.content.intro_paragraphs):
+                    scene_text = write_paragraph(
+                        topic, original_plan, structured_plan, written_article,
+                        scene, style=style, provider=provider
+                    )
+                    scene_script = extract_scene_script(scene_text, provider)
+                    written_article.content.intro_paragraphs[idx].text = scene_script.model_dump_json()
+
+                # Write main headings and their scenes
+                for heading in written_article.content.main_headings:
+                    for idx, scene in enumerate(heading.scenes):
+                        scene_text = write_paragraph(
+                            topic, original_plan, structured_plan, written_article,
+                            scene, style=style, provider=provider
+                        )
+                        scene_script = extract_scene_script(scene_text, provider)
+                        heading.scenes[idx].text = scene_script.model_dump_json()
+
+                # Write conclusion paragraphs
+                for idx, scene in enumerate(written_article.content.conclusion_paragraphs):
+                    scene_text = write_paragraph(
+                        topic, original_plan, structured_plan, written_article,
+                        scene, style=style, provider=provider
+                    )
+                    scene_script = extract_scene_script(scene_text, provider)
+                    written_article.content.conclusion_paragraphs[idx].text = scene_script.model_dump_json()
+
+            elif isinstance(written_article.content, LongArticleStructure):
+                # Write introduction paragraphs
+                for idx, scene in enumerate(written_article.content.intro_paragraphs):
+                    scene_text = write_paragraph(
+                        topic, original_plan, structured_plan, written_article, scene, style=style, provider=provider
+                    )
+                    scene_script = extract_scene_script(scene_text, provider)
+                    written_article.content.intro_paragraphs[idx].text = scene_script.model_dump_json()
+
+                # Write main headings and their nested content
+                for heading in written_article.content.main_headings:
+                    # Write main heading scenes
+                    for idx, scene in enumerate(heading.scenes):
+                        scene_text = write_paragraph(
+                            topic, original_plan, structured_plan, written_article,
+                            scene, style=style, provider=provider
+                        )
+                        scene_script = extract_scene_script(scene_text, provider)
+                        heading.scenes[idx].text = scene_script.model_dump_json()
+
+                    # Write subheadings
+                    for subheading in heading.sub_headings:
+                        for idx, scene in enumerate(subheading.scenes):
+                            scene_text = write_paragraph(
+                                topic, original_plan, structured_plan, written_article,
+                                scene, style=style, provider=provider
+                            )
+                            scene_script = extract_scene_script(scene_text, provider)
+                            subheading.scenes[idx].text = scene_script.model_dump_json()
+
+                        # Write sub-subheadings
+                        for subsubheading in subheading.sub_headings:
+                            for idx, scene in enumerate(subsubheading.scenes):
+                                scene_text = write_paragraph(
+                                    topic, original_plan, structured_plan, written_article,
+                                    scene, style=style, provider=provider
+                                )
+                                scene_script = extract_scene_script(scene_text, provider)
+                                subsubheading.scenes[idx].text = scene_script.model_dump_json()
+
+                # Write conclusion paragraphs
+                for idx, scene in enumerate(written_article.content.conclusion_paragraphs):
+                    scene_text = write_paragraph(
+                        topic, original_plan, structured_plan, written_article,
+                        scene, style=style, provider=provider
+                    )
+                    scene_script = extract_scene_script(scene_text, provider)
+                    written_article.content.conclusion_paragraphs[idx].text = scene_script.model_dump_json()
+
+        logger.info(f"Successfully completed writing full article using {provider} with paragraph-level generation")
+        return written_article
+
+    except Exception as e:
+        log_api_error('write_full_article', e,
+                      topic=topic,
+                      length=structured_plan.length,
+                      provider=provider)
+        raise Exception(f"Failed to write full article: {str(e)}")
+
+def format_scene_script(scene_text: str) -> str:
+    """Helper function to convert scene script JSON to prose"""
+    try:
+        # Parse the JSON string into a SceneScript object
+        scene_script = SceneScript.model_validate_json(scene_text)
+        
+        # Process each paragraph
+        formatted_paragraphs = []
+        for paragraph in scene_script.paragraphs:
+            # Combine lines into prose
+            prose_lines = []
+            for line in paragraph.lines:
+                if line.speaker == "Narrator":
+                    prose_lines.append(line.text)
+                else:
+                    # Add quotes around character dialogue
+                    prose_lines.append(f'"{line.text}"')
+            
+            # Join the lines with appropriate spacing
+            formatted_paragraphs.append(" ".join(prose_lines))
+        
+        # Return paragraphs joined with newlines
+        return "\n\n".join(formatted_paragraphs)
+        
+    except Exception as e:
+        logger.error(f"Error formatting scene script: {e}")
+        return scene_text  # Return original text if parsing fails
+
+def format_written_content(
+    written_article: Union[
+        ArticleStructure, ShortArticleStructure, MediumArticleStructure, LongArticleStructure
+    ],
+    include_headers: bool = True
+) -> str:
+    content = []
+
+    # Check if written_article is an ArticleStructure
+    if isinstance(written_article, ArticleStructure):
+        article_content = written_article.content
+    else:
+        article_content = written_article
+
+    # Add title if headers are included
+    if include_headers and hasattr(article_content, 'title'):
+        content.append(f"# {article_content.title}\n")
+
+    # Handle different article structures
+    if isinstance(article_content, ShortArticleStructure):
+        for scene in article_content.scenes:
+            if scene.text:
+                content.append(format_scene_script(scene.text))
+                
+    elif isinstance(article_content, MediumArticleStructure):
+        # Introduction
+        for scene in article_content.intro_paragraphs:
+            if scene.text:
+                content.append(format_scene_script(scene.text))
+        content.append("")
+
+        # Main headings
+        for heading in article_content.main_headings:
+            if include_headers:
+                content.append(f"## {heading.title}")
+            for scene in heading.scenes:
+                if scene.text:
+                    content.append(format_scene_script(scene.text))
+            content.append("")
+
+        # Conclusion
+        for scene in article_content.conclusion_paragraphs:
+            if scene.text:
+                content.append(format_scene_script(scene.text))
+                
+    elif isinstance(article_content, LongArticleStructure):
+        # Introduction
+        for scene in article_content.intro_paragraphs:
+            if scene.text:
+                content.append(format_scene_script(scene.text))
+        content.append("")
+
+        # Main headings and nested content
+        for heading in article_content.main_headings:
+            if include_headers:
+                content.append(f"## {heading.title}")
+            for scene in heading.scenes:
+                if scene.text:
+                    content.append(format_scene_script(scene.text))
+            content.append("")
+
+            for sub in heading.sub_headings:
+                if include_headers:
+                    content.append(f"### {sub.title}")
+                for scene in sub.scenes:
+                    if scene.text:
+                        content.append(format_scene_script(scene.text))
+                content.append("")
+
+                for subsub in sub.sub_headings:
+                    if include_headers:
+                        content.append(f"#### {subsub.title}")
+                    for scene in subsub.scenes:
+                        if scene.text:
+                            content.append(format_scene_script(scene.text))
+                    content.append("")
+
+        # Conclusion
+        for scene in article_content.conclusion_paragraphs:
+            if scene.text:
+                content.append(format_scene_script(scene.text))
+
+    # Join all content with double newlines and strip extra whitespace
+    final_content = "\n\n".join(filter(None, content)).strip()
+    return final_content

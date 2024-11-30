@@ -14,6 +14,7 @@ from app.services.llm_service import (
 )
 from app.schemas import ArticleLength
 from app.constants.writing_styles import AVAILABLE_STYLES  # Import the styles
+from app.services.audio_service import AudioService
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -32,11 +33,8 @@ async def write_article_stream(
     try:
         article_length = ArticleLength(length.lower())
     except ValueError:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid length. Must be one of: {[l.value for l in ArticleLength]}"
-        )
-    
+        raise HTTPException(status_code=400, detail=f"Invalid length: {length}")
+
     async def event_generator():
         try:
             # Generate initial plan
@@ -90,6 +88,25 @@ async def write_article_stream(
             )
             article_data = json.dumps({"type": "article", "content": formatted_content})
             yield f"data: {article_data}\n\n"
+            
+            # Generate audio after article is complete
+            try:
+                audio_service = AudioService()
+                final_audio = audio_service.process_article(written_article)
+                
+                # Save the audio to a file with a unique name based on topic
+                safe_topic = "".join(x for x in topic if x.isalnum() or x in (' ', '-', '_')).rstrip()
+                filename = f"output_{safe_topic[:30]}.wav"
+                with open(filename, "wb") as f:
+                    f.write(final_audio)
+                    
+                # Send audio file path to client
+                audio_data = json.dumps({"type": "audio", "content": filename})
+                yield f"data: {audio_data}\n\n"
+            except Exception as audio_error:
+                logger.error(f"Error generating audio: {str(audio_error)}")
+                error_data = json.dumps({"type": "audio_error", "content": str(audio_error)})
+                yield f"data: {error_data}\n\n"
             
             # Indicate the end of the stream
             yield 'event: end\ndata: \n\n'
