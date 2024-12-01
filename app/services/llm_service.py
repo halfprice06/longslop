@@ -848,7 +848,7 @@ def write_full_article(
     style: str = "new_yorker",
     provider: ProviderType = "openai",
     include_headers: bool = True
-) -> ArticleStructure:
+) -> Tuple[ArticleStructure, SceneScript]:
     """Write the entire article or short story, generating each paragraph individually."""
     try:
         # Create a deep copy of the structured plan to preserve the original
@@ -859,6 +859,10 @@ def write_full_article(
 
         logger.info(f"Starting full article writing process for {structured_plan.length} article, generating paragraphs individually")
 
+        # Initialize combined scene script
+        all_paragraphs = []
+        scene_title = topic  # Use topic as the overall title
+
         if isinstance(written_article.content, ShortArticleStructure):
             # Generate each scene individually
             for idx, scene in enumerate(written_article.content.scenes):
@@ -868,6 +872,7 @@ def write_full_article(
                 )
                 scene_script = extract_scene_script(scene_text, provider)
                 written_article.content.scenes[idx].text = scene_script.model_dump_json()
+                all_paragraphs.extend(scene_script.paragraphs)
 
         else:
             # Handle medium and long articles
@@ -880,6 +885,7 @@ def write_full_article(
                     )
                     scene_script = extract_scene_script(scene_text, provider)
                     written_article.content.intro_paragraphs[idx].text = scene_script.model_dump_json()
+                    all_paragraphs.extend(scene_script.paragraphs)
 
                 # Write main headings and their scenes
                 for heading in written_article.content.main_headings:
@@ -890,6 +896,7 @@ def write_full_article(
                         )
                         scene_script = extract_scene_script(scene_text, provider)
                         heading.scenes[idx].text = scene_script.model_dump_json()
+                        all_paragraphs.extend(scene_script.paragraphs)
 
                 # Write conclusion paragraphs
                 for idx, scene in enumerate(written_article.content.conclusion_paragraphs):
@@ -899,6 +906,7 @@ def write_full_article(
                     )
                     scene_script = extract_scene_script(scene_text, provider)
                     written_article.content.conclusion_paragraphs[idx].text = scene_script.model_dump_json()
+                    all_paragraphs.extend(scene_script.paragraphs)
 
             elif isinstance(written_article.content, LongArticleStructure):
                 # Write introduction paragraphs
@@ -908,6 +916,7 @@ def write_full_article(
                     )
                     scene_script = extract_scene_script(scene_text, provider)
                     written_article.content.intro_paragraphs[idx].text = scene_script.model_dump_json()
+                    all_paragraphs.extend(scene_script.paragraphs)
 
                 # Write main headings and their nested content
                 for heading in written_article.content.main_headings:
@@ -919,6 +928,7 @@ def write_full_article(
                         )
                         scene_script = extract_scene_script(scene_text, provider)
                         heading.scenes[idx].text = scene_script.model_dump_json()
+                        all_paragraphs.extend(scene_script.paragraphs)
 
                     # Write subheadings
                     for subheading in heading.sub_headings:
@@ -929,6 +939,7 @@ def write_full_article(
                             )
                             scene_script = extract_scene_script(scene_text, provider)
                             subheading.scenes[idx].text = scene_script.model_dump_json()
+                            all_paragraphs.extend(scene_script.paragraphs)
 
                         # Write sub-subheadings
                         for subsubheading in subheading.sub_headings:
@@ -939,6 +950,7 @@ def write_full_article(
                                 )
                                 scene_script = extract_scene_script(scene_text, provider)
                                 subsubheading.scenes[idx].text = scene_script.model_dump_json()
+                                all_paragraphs.extend(scene_script.paragraphs)
 
                 # Write conclusion paragraphs
                 for idx, scene in enumerate(written_article.content.conclusion_paragraphs):
@@ -948,9 +960,17 @@ def write_full_article(
                     )
                     scene_script = extract_scene_script(scene_text, provider)
                     written_article.content.conclusion_paragraphs[idx].text = scene_script.model_dump_json()
+                    all_paragraphs.extend(scene_script.paragraphs)
+
+        # Create combined scene script with all paragraphs
+        combined_script = SceneScript(
+            scene_title=scene_title,
+            paragraphs=all_paragraphs
+        )
 
         logger.info(f"Successfully completed writing full article using {provider} with paragraph-level generation")
-        return written_article
+        
+        return written_article, combined_script
 
     except Exception as e:
         log_api_error('write_full_article', e,

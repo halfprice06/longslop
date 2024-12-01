@@ -1,206 +1,185 @@
 import base64
 from typing import List, Dict, Set
 import os
-from openai import OpenAI
-from app.schemas import SceneLine, Scene, WrittenArticle
+from elevenlabs import ElevenLabs
+from app.schemas import SceneLine, SceneScript
 import dotenv
+import uuid
+from datetime import datetime
+import io
+import tempfile
 
 dotenv.load_dotenv()
 
+def normalize_speaker_name(speaker: str) -> str:
+    """Normalize speaker names to ensure consistency."""
+    # Convert to title case first
+    normalized = speaker.strip().title()
+    
+    # Special case for narrator - always capitalize
+    if normalized.lower() == "narrator":
+        return "Narrator"
+        
+    return normalized
+
 class AudioService:
     def __init__(self):
+        print("Initializing AudioService...")
         self.voice_mapping: Dict[str, str] = {}  # Maps speakers to voice IDs
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # Initialize OpenAI client
+        self.client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
+        # Create frontend/output directory if it doesn't exist
+        self.output_dir = os.path.join("frontend", "output")
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+        print("AudioService initialized successfully")
         
-    def extract_unique_speakers(self, article: WrittenArticle) -> Set[str]:
-        """Extract all unique speakers from the article, including the narrator."""
+    def extract_unique_speakers(self, script: SceneScript) -> Set[str]:
+        """Extract all unique speakers from the script."""
+        print("Extracting speakers from script...")
         speakers = set()
-        speakers.add("narrator")  # Always include narrator
+        speakers.add("Narrator")  # Always include narrator with correct capitalization
         
-        if article.length == "short":
-            content = article.content
-            for scene in content.scenes:
-                if hasattr(scene, 'lines'):
-                    for line in scene.lines:
-                        speakers.add(line.speaker)
-                        
-        elif article.length == "medium":
-            content = article.content
-            # Process intro paragraphs
-            for scene in content.intro_paragraphs:
-                if hasattr(scene, 'lines'):
-                    for line in scene.lines:
-                        speakers.add(line.speaker)
-            
-            # Process main headings
-            for heading in content.main_headings:
-                for scene in heading.scenes:
-                    if hasattr(scene, 'lines'):
-                        for line in scene.lines:
-                            speakers.add(line.speaker)
-                            
-            # Process conclusion paragraphs
-            for scene in content.conclusion_paragraphs:
-                if hasattr(scene, 'lines'):
-                    for line in scene.lines:
-                        speakers.add(line.speaker)
-                        
-        elif article.length == "long":
-            content = article.content
-            # Process main headings and their subheadings
-            for heading in content.main_headings:
-                for scene in heading.scenes:
-                    if hasattr(scene, 'lines'):
-                        for line in scene.lines:
-                            speakers.add(line.speaker)
-                
-                # Process subheadings
-                for subheading in heading.sub_headings:
-                    for scene in subheading.scenes:
-                        if hasattr(scene, 'lines'):
-                            for line in scene.lines:
-                                speakers.add(line.speaker)
-                    
-                    # Process sub-subheadings
-                    for subsubheading in subheading.sub_headings:
-                        for scene in subsubheading.scenes:
-                            if hasattr(scene, 'lines'):
-                                for line in scene.lines:
-                                    speakers.add(line.speaker)
+        for paragraph in script.paragraphs:
+            for line in paragraph.lines:
+                speakers.add(normalize_speaker_name(line.speaker))
         
+        print(f"Found {len(speakers)} unique speakers: {speakers}")
         return speakers
         
     def assign_voices_to_speakers(self, speakers: Set[str]) -> Dict[str, str]:
         """Assign a unique voice ID to each speaker."""
-        # OpenAI currently supports these voices: alloy, echo, fable, onyx, nova, and shimmer
-        available_voices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+        print("Assigning voices to speakers...")
+        # TODO: Replace with actual ElevenLabs voice IDs
+        available_voices = [
+            "uVKHymY7OYMd6OailpG5",  # Default voice ID for now
+            "eVItLK1UvXctxuaRV2Oq",  # Add more voice IDs here
+            "flHkNRp1BlvT73UL6gyz",
+            "FF7KdobWPaiR0vkcALHF",
+            "qNkzaJoHLLdpvgh5tISm"
+        ]
         
-        # Always assign 'alloy' to narrator for consistency
-        self.voice_mapping["narrator"] = "alloy"
+        # Always assign first voice to narrator for consistency
+        self.voice_mapping["Narrator"] = available_voices[0]
+        print(f"Assigned voice ID '{available_voices[0]}' to Narrator")
         
         # Assign remaining voices to speakers
-        remaining_speakers = speakers - {"narrator"}
+        remaining_speakers = speakers - {"Narrator"}
         for i, speaker in enumerate(remaining_speakers):
-            voice_idx = (i % (len(available_voices) - 1)) + 1  # Skip 'alloy' as it's for narrator
+            voice_idx = (i % (len(available_voices) - 1)) + 1
             self.voice_mapping[speaker] = available_voices[voice_idx]
+            print(f"Assigned voice ID '{available_voices[voice_idx]}' to speaker '{speaker}'")
             
         return self.voice_mapping
     
     def generate_audio_for_text(self, text: str, voice_id: str) -> bytes:
-        """Generate audio for a single piece of text using OpenAI's text-to-speech."""
+        """Generate audio for a single piece of text using ElevenLabs TTS API."""
+        print(f"Generating audio for text (length: {len(text)}) with voice ID: {voice_id}")
         try:
-            completion = self.client.chat.completions.create(
-                model="gpt-4o-audio-preview",
-                modalities=["text", "audio"],
-                audio={"voice": voice_id, "format": "wav"},
-                messages=[
-                    {
-                        "role": "user",
-                        "content": f"You are narrating an audiobook. Read the following text: {text}"
-                    }
-                ]
+            # Get the generator from the API
+            audio_generator = self.client.text_to_speech.convert(
+                voice_id=voice_id,
+                model_id="eleven_multilingual_v2",
+                text=text,
+                output_format="mp3_44100_128"
             )
             
-            # Decode the base64 audio data
-            wav_bytes = base64.b64decode(completion.choices[0].message.audio.data)
-            return wav_bytes
+            # Convert generator to bytes by reading all chunks
+            audio_chunks = []
+            for chunk in audio_generator:
+                if chunk:
+                    audio_chunks.append(chunk)
+            
+            # Combine all chunks into a single bytes object
+            audio_data = b''.join(audio_chunks)
+            print(f"Successfully generated audio segment of size: {len(audio_data)} bytes")
+            return audio_data
             
         except Exception as e:
             print(f"Error generating audio for text: {e}")
             return b""  # Return empty bytes on error
     
     def stitch_audio_segments(self, audio_segments: List[bytes]) -> bytes:
-        """Combine multiple audio segments into a single audio file."""
-        # For now, we'll just concatenate the WAV files
-        # In a production environment, you'd want to use a proper audio library
-        # to handle transitions and ensure consistent audio properties
-        combined_audio = b"".join(audio_segments)
+        """Combine multiple audio segments into a single MP3 file."""
+        print(f"Stitching {len(audio_segments)} audio segments together...")
+        
+        if not audio_segments:
+            return b""
+
+        # Create a temporary directory to store individual segments
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Save each segment to a temporary file
+            temp_files = []
+            for i, segment in enumerate(audio_segments):
+                if segment:  # Only process non-empty segments
+                    temp_path = os.path.join(temp_dir, f"segment_{i}.mp3")
+                    with open(temp_path, "wb") as f:
+                        f.write(segment)
+                    temp_files.append(temp_path)
+            
+            # Use ffmpeg to concatenate MP3 files
+            output_path = os.path.join(temp_dir, "output.mp3")
+            concat_list = os.path.join(temp_dir, "concat.txt")
+            
+            # Create concat file for ffmpeg
+            with open(concat_list, "w") as f:
+                for temp_file in temp_files:
+                    f.write(f"file '{temp_file}'\n")
+            
+            # Run ffmpeg
+            os.system(f'ffmpeg -f concat -safe 0 -i "{concat_list}" -c copy "{output_path}"')
+            
+            # Read the final output
+            with open(output_path, "rb") as f:
+                combined_audio = f.read()
+        
+        print(f"Final audio size: {len(combined_audio)} bytes")
         return combined_audio
-    
-    def process_article(self, article: WrittenArticle) -> bytes:
-        """Main function to process entire article and generate full audio."""
-        # 1. Get unique speakers
-        speakers = self.extract_unique_speakers(article)
+
+    def process_article(self, script: SceneScript) -> str:
+        """Main function to process entire script and generate full audio. Returns the filename."""
+        print("Processing script...")
+        
+        # Normalize all speaker names in the script
+        for paragraph in script.paragraphs:
+            for line in paragraph.lines:
+                line.speaker = normalize_speaker_name(line.speaker)
+        
+        # 1. Get unique speakers (now using normalized names)
+        speakers = self.extract_unique_speakers(script)
         
         # 2. Assign voices to speakers
         self.assign_voices_to_speakers(speakers)
         
         # 3. Generate audio segments
+        print("Starting audio generation...")
         audio_segments = []
         
-        def process_scene(scene: Scene):
-            if hasattr(scene, 'lines'):
-                for line in scene.lines:
-                    voice_id = self.voice_mapping[line.speaker]
-                    audio = self.generate_audio_for_text(line.text, voice_id)
-                    audio_segments.append(audio)
-            elif scene.text:  # Narration
-                voice_id = self.voice_mapping["narrator"]
-                audio = self.generate_audio_for_text(scene.text, voice_id)
-                audio_segments.append(audio)
+        # Add title narration
+        title_audio = self.generate_audio_for_text(script.scene_title, self.voice_mapping["Narrator"])
+        if title_audio:
+            audio_segments.append(title_audio)
         
-        content = article.content
-        if article.length == "short":
-            for scene in content.scenes:
-                process_scene(scene)
-                
-        elif article.length == "medium":
-            # Process intro
-            for scene in content.intro_paragraphs:
-                process_scene(scene)
-            
-            # Process main headings
-            for heading in content.main_headings:
-                # Add heading title as narration
-                audio = self.generate_audio_for_text(heading.title, self.voice_mapping["narrator"])
-                audio_segments.append(audio)
-                
-                for scene in heading.scenes:
-                    process_scene(scene)
-            
-            # Process conclusion
-            for scene in content.conclusion_paragraphs:
-                process_scene(scene)
-                
-        elif article.length == "long":
-            # Process intro paragraphs as narration
-            for para in content.intro_paragraphs:
-                audio = self.generate_audio_for_text(para, self.voice_mapping["narrator"])
-                audio_segments.append(audio)
-            
-            # Process main headings
-            for heading in content.main_headings:
-                # Add heading title as narration
-                audio = self.generate_audio_for_text(heading.title, self.voice_mapping["narrator"])
-                audio_segments.append(audio)
-                
-                for scene in heading.scenes:
-                    process_scene(scene)
-                
-                # Process subheadings
-                for subheading in heading.sub_headings:
-                    # Add subheading title as narration
-                    audio = self.generate_audio_for_text(subheading.title, self.voice_mapping["narrator"])
+        # Process each paragraph
+        for paragraph in script.paragraphs:
+            for line in paragraph.lines:
+                voice_id = self.voice_mapping[line.speaker]  # Will now use normalized speaker names
+                print(f"Processing line for speaker '{line.speaker}' with voice '{voice_id}'")
+                audio = self.generate_audio_for_text(line.text, voice_id)
+                if audio:  # Only append if we got valid audio
                     audio_segments.append(audio)
-                    
-                    for scene in subheading.scenes:
-                        process_scene(scene)
-                    
-                    # Process sub-subheadings
-                    for subsubheading in subheading.sub_headings:
-                        # Add sub-subheading title as narration
-                        audio = self.generate_audio_for_text(subsubheading.title, self.voice_mapping["narrator"])
-                        audio_segments.append(audio)
-                        
-                        for scene in subsubheading.scenes:
-                            process_scene(scene)
-            
-            # Process conclusion paragraphs as narration
-            for para in content.conclusion_paragraphs:
-                audio = self.generate_audio_for_text(para, self.voice_mapping["narrator"])
-                audio_segments.append(audio)
         
         # 4. Stitch together all segments
+        print("Finalizing audio processing...")
         final_audio = self.stitch_audio_segments(audio_segments)
         
-        return final_audio 
+        # 5. Save to file with unique name
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        filename = f"story_{timestamp}_{unique_id}.mp3"
+        filepath = os.path.join(self.output_dir, filename)
+        
+        with open(filepath, "wb") as f:
+            f.write(final_audio)
+        
+        print(f"Script processing complete. Saved to {filepath}")
+        return filename

@@ -72,7 +72,7 @@ async def write_article_stream(
             await asyncio.sleep(1)
             
             # Write the full article using the revised structured plan
-            written_article = write_full_article(
+            written_article, scene_script = write_full_article(
                 topic, 
                 revised_plan, 
                 revised_structured_plan, 
@@ -92,16 +92,10 @@ async def write_article_stream(
             # Generate audio after article is complete
             try:
                 audio_service = AudioService()
-                final_audio = audio_service.process_article(written_article)
+                filename = audio_service.process_article(scene_script)
                 
-                # Save the audio to a file with a unique name based on topic
-                safe_topic = "".join(x for x in topic if x.isalnum() or x in (' ', '-', '_')).rstrip()
-                filename = f"output_{safe_topic[:30]}.wav"
-                with open(filename, "wb") as f:
-                    f.write(final_audio)
-                    
                 # Send audio file path to client
-                audio_data = json.dumps({"type": "audio", "content": filename})
+                audio_data = json.dumps({"type": "audio", "content": f"output/{filename}"})
                 yield f"data: {audio_data}\n\n"
             except Exception as audio_error:
                 logger.error(f"Error generating audio: {str(audio_error)}")
