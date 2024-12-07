@@ -27,7 +27,8 @@ async def write_article_stream(
     style: str = "new_yorker",
     length: str = "long",
     provider: str = "openai",
-    includeHeaders: bool = True
+    includeHeaders: bool = True,
+    includeAudio: bool = True  # new parameter
 ):
     # Convert length string to enum
     try:
@@ -90,20 +91,21 @@ async def write_article_stream(
             yield f"data: {article_data}\n\n"
             
             # Generate audio after article is complete
-            try:
-                audio_service = AudioService()
-                filename = audio_service.process_article(scene_script)
+            if includeAudio:
+                try:
+                    audio_service = AudioService()
+                    filename = audio_service.process_article(scene_script)
+                    
+                    # Send audio file path to client
+                    audio_data = json.dumps({"type": "audio", "content": f"output/{filename}"})
+                    yield f"data: {audio_data}\n\n"
+                except Exception as audio_error:
+                    logger.error(f"Error generating audio: {str(audio_error)}")
+                    error_data = json.dumps({"type": "audio_error", "content": str(audio_error)})
+                    yield f"data: {error_data}\n\n"
                 
-                # Send audio file path to client
-                audio_data = json.dumps({"type": "audio", "content": f"output/{filename}"})
-                yield f"data: {audio_data}\n\n"
-            except Exception as audio_error:
-                logger.error(f"Error generating audio: {str(audio_error)}")
-                error_data = json.dumps({"type": "audio_error", "content": str(audio_error)})
-                yield f"data: {error_data}\n\n"
-            
-            # Indicate the end of the stream
-            yield 'event: end\ndata: \n\n'
+                # Indicate the end of the stream
+                yield 'event: end\ndata: \n\n'
             
         except Exception as e:
             logger.error(f"Error in event_generator: {str(e)}", exc_info=True)

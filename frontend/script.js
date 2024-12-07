@@ -9,7 +9,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const articleContent = document.getElementById('articleContent');
     const audioSection = document.getElementById('audioSection');
     const articleAudio = document.getElementById('articleAudio');
-  
+    const includeAudioParam = document.getElementById('includeAudio').value; 
+    
+    if (includeAudioParam === "false") {
+        audioSection.classList.add('hidden');
+    }
+    
     let sseSource = null;
     let rawDataVisible = false;
     let cumulativeData = [];
@@ -52,13 +57,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     function startGeneration(topic, style, length, includeHeaders) {
       resetUI();
       outputSection.classList.remove('hidden');
-  
+
+      const includeAudio = document.getElementById('includeAudio').value; 
+
       const params = new URLSearchParams({
         topic: topic,
         style: style,
         length: length,
         provider: 'openai',
-        includeHeaders: includeHeaders
+        includeHeaders: includeHeaders,
+        includeAudio: includeAudio
       });
   
       sseSource = new EventSource(`/api/v1/write-article-stream?${params.toString()}`);
@@ -192,5 +200,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         rawData.classList.add('hidden');
       }
     }
+    
   });
   
