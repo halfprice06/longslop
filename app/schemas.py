@@ -3,37 +3,48 @@ from pydantic import BaseModel, Field
 from enum import Enum
 from datetime import datetime
 
+class SceneLine(BaseModel):
+    speaker: str
+    text: str
+
 class Paragraph(BaseModel):
-    paragraph_description: str
+    lines: List[SceneLine]
+
+class SceneScript(BaseModel):
+    scene_title: str
+    paragraphs: List[Paragraph]
+
+class Scene(BaseModel):
+    scene_description: str
     must_include: str
     text: Optional[str] = None
 
 # Base content models
 class SubSubHeading(BaseModel):
     title: str
-    paragraphs: List[Paragraph]
+    scenes: List[Scene]
 
 class SubHeading(BaseModel):
     title: str
-    paragraphs: List[Paragraph]
+    scenes: List[Scene]
     sub_headings: List[SubSubHeading]
 
 class MainHeading(BaseModel):
     title: str
-    paragraphs: List[Paragraph]
+    scenes: List[Scene]
     sub_headings: List[SubHeading]
 
 # Short article structure (no headings)
 class ShortArticleStructure(BaseModel):
     title: str
-    paragraphs: List[Paragraph]
+    scenes: List[Scene]
 
 # Medium article structure (headings but no subheadings)
 class MediumArticleStructure(BaseModel):
     title: str
-    intro_paragraphs: List[Paragraph]
+    intro_paragraphs: List[Scene]
     main_headings: List[MainHeading]
-    conclusion_paragraphs: List[Paragraph]
+    conclusion_paragraphs: List[Scene]
 
 # Long article structure (full hierarchy)
 class LongArticleStructure(BaseModel):

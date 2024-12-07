@@ -5,3 +5,9 @@ openai
 pydantic
 anthropic
 sse-starlette
+aiosqlite
+python-multipart
+typing-extensions
+sqlalchemy
+instructor
+elevenlabs

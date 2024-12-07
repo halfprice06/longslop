@@ -14,6 +14,7 @@ from app.services.llm_service import (
 )
 from app.schemas import ArticleLength
 from app.constants.writing_styles import AVAILABLE_STYLES  # Import the styles
+from app.services.audio_service import AudioService
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -26,17 +27,15 @@ async def write_article_stream(
     style: str = "new_yorker",
     length: str = "long",
     provider: str = "openai",
-    includeHeaders: bool = True
+    includeHeaders: bool = True,
+    includeAudio: bool = False  # new parameter
 ):
     # Convert length string to enum
     try:
         article_length = ArticleLength(length.lower())
     except ValueError:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid length. Must be one of: {[l.value for l in ArticleLength]}"
-        )
-    
+        raise HTTPException(status_code=400, detail=f"Invalid length: {length}")
+
     async def event_generator():
         try:
             # Generate initial plan
@@ -74,7 +73,7 @@ async def write_article_stream(
             await asyncio.sleep(1)
             
             # Write the full article using the revised structured plan
-            written_article = write_full_article(
+            written_article, scene_script = write_full_article(
                 topic, 
                 revised_plan, 
                 revised_structured_plan, 
@@ -91,8 +90,22 @@ async def write_article_stream(
             article_data = json.dumps({"type": "article", "content": formatted_content})
             yield f"data: {article_data}\n\n"
             
-            # Indicate the end of the stream
-            yield 'event: end\ndata: \n\n'
+            # Generate audio after article is complete
+            if includeAudio:
+                try:
+                    audio_service = AudioService()
+                    filename = audio_service.process_article(scene_script)
+                    
+                    # Send audio file path to client
+                    audio_data = json.dumps({"type": "audio", "content": f"output/{filename}"})
+                    yield f"data: {audio_data}\n\n"
+                except Exception as audio_error:
+                    logger.error(f"Error generating audio: {str(audio_error)}")
+                    error_data = json.dumps({"type": "audio_error", "content": str(audio_error)})
+                    yield f"data: {error_data}\n\n"
+                
+                # Indicate the end of the stream
+                yield 'event: end\ndata: \n\n'
             
         except Exception as e:
             logger.error(f"Error in event_generator: {str(e)}", exc_info=True)

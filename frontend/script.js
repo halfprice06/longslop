@@ -1,354 +1,205 @@
-// Initialize markdown-it at the start
-const md = window.markdownit();
-
-// Style Loading Functions
-async function loadStyles() {
-    try {
-        const response = await fetch('/api/v1/styles');
-        window.styles = await response.json();
-        
-        const styleSelect = document.getElementById('style-select');
-        const styleInfo = document.querySelector('.style-info');
-        
-        // Update style info when selection changes
-        styleSelect.addEventListener('change', () => {
-            const selectedStyle = window.styles[styleSelect.value];
-            if (selectedStyle) {
-                styleInfo.innerHTML = `
-                    <h3>${selectedStyle.name}</h3>
-                    <p>${selectedStyle.description}</p>
-                    <div class="example"><em>Example:</em> ${selectedStyle.example}</div>
-                `;
-            }
+document.addEventListener("DOMContentLoaded", async () => {
+    const styleSelect = document.getElementById('style');
+    const form = document.getElementById('generateForm');
+    const outputSection = document.getElementById('outputSection');
+    const statusMessage = document.getElementById('statusMessage');
+    const rawData = document.getElementById('rawData');
+    const rawDataToggle = document.getElementById('rawDataToggle');
+    const finalArticle = document.getElementById('finalArticle');
+    const articleContent = document.getElementById('articleContent');
+    const audioSection = document.getElementById('audioSection');
+    const articleAudio = document.getElementById('articleAudio');
+    const includeAudioParam = document.getElementById('includeAudio').value; 
+    
+    if (includeAudioParam === "false") {
+        audioSection.classList.add('hidden');
+    }
+    
+    let sseSource = null;
+    let rawDataVisible = false;
+    let cumulativeData = [];
+  
+    // Fetch styles from backend and populate styles dropdown
+    async function fetchStyles() {
+      try {
+        const res = await fetch('/api/v1/styles');
+        if (!res.ok) throw new Error('Failed to fetch styles');
+        const styles = await res.json();
+        Object.keys(styles).forEach(key => {
+          const opt = document.createElement('option');
+          opt.value = key;
+          opt.innerText = styles[key].name;
+          styleSelect.appendChild(opt);
         });
-        
-        // Trigger initial style info display for the default selection
-        const defaultStyle = window.styles[styleSelect.value];
-        if (defaultStyle) {
-            styleInfo.innerHTML = `
-                <h3>${defaultStyle.name}</h3>
-                <p>${defaultStyle.description}</p>
-                <div class="example"><em>Example:</em> ${defaultStyle.example}</div>
-            `;
-        }
-    } catch (error) {
-        console.error('Failed to load styles:', error);
+      } catch (e) {
+        console.error(e);
+        alert("Error fetching styles. Check console for details.");
+      }
     }
-}
-
-async function showStyleInfo(event) {
-    event.preventDefault();
-    const overlay = document.querySelector('.style-modal-overlay');
-    const styleSelect = document.getElementById('style-select');
-    
-    try {
-        // Fetch styles if not already loaded
-        if (!window.styles) {
-            const response = await fetch('/api/v1/styles');
-            window.styles = await response.json();
-        }
-        
-        const selectedStyle = window.styles[styleSelect.value];
-        if (selectedStyle) {
-            const styleInfo = document.querySelector('.style-modal .style-info');
-            styleInfo.innerHTML = `
-                <h3>${selectedStyle.name}</h3>
-                <p>${selectedStyle.description}</p>
-                <div class="example"><em>Example:</em> ${selectedStyle.example}</div>
-            `;
-        }
-        
-        overlay.classList.add('active');
-        
-        // Add escape key listener
-        const escapeHandler = (e) => {
-            if (e.key === 'Escape') {
-                hideStyleInfo();
-                document.removeEventListener('keydown', escapeHandler);
-            }
-        };
-        document.addEventListener('keydown', escapeHandler);
-        
-    } catch (error) {
-        console.error('Failed to load style info:', error);
-    }
-}
-
-function hideStyleInfo() {
-    const overlay = document.querySelector('.style-modal-overlay');
-    overlay.classList.remove('active');
-}
-
-function updateUIForLength() {
-    const lengthSelect = document.getElementById('length-select');
-    const styleSelect = document.getElementById('style-select');
-    
-    // Remove the length-based restrictions
-    Array.from(styleSelect.options).forEach(option => {
-        option.disabled = false;
-    });
-}
-
-// Utility Functions
-function hideInputContainer() {
-    const inputContainer = document.querySelector('.input-container');
-    inputContainer.style.opacity = '0';
-    setTimeout(() => {
-        inputContainer.style.display = 'none';
-    }, 200); // Match transition duration
-}
-
-function showTryAgainButton() {
-    const tryAgainButton = document.createElement('button');
-    tryAgainButton.className = 'try-again-button';
-    tryAgainButton.textContent = 'Try Again';
-    tryAgainButton.onclick = () => window.location.reload();
-    
-    // Insert after the written article
-    const writtenArticle = document.querySelector('.written-article');
-    writtenArticle.insertAdjacentElement('afterend', tryAgainButton);
-    
-    // Trigger animation
-    setTimeout(() => {
-        tryAgainButton.classList.add('visible');
-    }, 100);
-}
-
-function autoResizeTextarea() {
-    const textarea = document.getElementById('topic');
-    textarea.style.height = 'auto';
-    const newHeight = Math.min(textarea.scrollHeight, 150);
-    textarea.style.height = newHeight + 'px';
-}
-
-// Output Update Functions
-function updateArticleOutput(content) {
-    const articleOutput = document.getElementById('article-output');
-    const includeHeaders = document.getElementById('includeHeaders').checked;
-    
-    let processedContent = content
-        .replace(/<\/?[^>]+(>|$)/g, '')
-        .replace(/\n{2,}/g, '\n\n')
-        .split('\n\n')
-        .filter(para => para.trim())
-        .map(para => para.trim())
-        .join('\n\n');
-
-    processedContent = processedContent.replace(/§CAPS§(.*?)(\n|$)/g, (match, p1) => {
-        return p1;
-    });
-
-    // Skip markdown rendering for headers if they're disabled
-    let htmlContent;
-    if (!includeHeaders) {
-        // Remove any markdown headers (#, ##, ###, etc.)
-        processedContent = processedContent.replace(/^#+\s+.*$/gm, '');
-        // Remove empty lines that might be left after removing headers
-        processedContent = processedContent.replace(/\n{3,}/g, '\n\n');
-    }
-    
-    htmlContent = md.render(processedContent);
-    articleOutput.innerHTML = htmlContent;
-
-    articleOutput.querySelectorAll('p').forEach((p, index) => {
-        p.style.textAlign = 'justify';
-        p.style.textJustify = 'inter-word';
-        
-        const prevElement = p.previousElementSibling;
-        if (index === 0 || (prevElement && prevElement.tagName.match(/^H[1-6]$/))) {
-            p.dataset.caps = 'true';
-            const text = p.textContent;
-            // Take first 3-4 words for small caps
-            const words = text.split(' ');
-            const capsWords = words.slice(0, 4).join(' ');
-            const restOfText = words.slice(4).join(' ');
-            
-            // Create the modified content with only first few words in small caps
-            p.innerHTML = `<span class="small-caps">${capsWords}</span> ${restOfText}`;
-        }
-    });
-}
-
-function updateNarrativeOutput(content) {
-    const narrativeOutput = document.getElementById('narrative-output');
-    let processedContent = content
-        .replace(/<\/?p>/g, '')
-        .replace(/([^\n])\n([^\n])/g, '$1 $2')
-        .replace(/\n\n+/g, '\n\n')
-        .split('\n\n')
-        .filter(para => para.trim())
-        .map(para => para.trim())
-        .join('\n\n');
-
-    const htmlContent = md.render(processedContent);
-    narrativeOutput.innerHTML = htmlContent;
-}
-
-function updateStructuredOutput(content) {
-    const structuredOutput = document.getElementById('structured-output');
-    
-    if (typeof content === 'object') {
-        const formattedJson = JSON.stringify(content, null, 2)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/(".*?")/g, '<span class="json-string">$1</span>')
-            .replace(/\b(true|false|null)\b/g, '<span class="json-keyword">$1</span>');
-        structuredOutput.innerHTML = `<pre>${formattedJson}</pre>`;
-    } else {
-        const htmlContent = md.render(content);
-        structuredOutput.innerHTML = htmlContent;
-    }
-}
-
-// Update function to handle the revised plan output
-function updateRevisedPlanOutput(content) {
-    const revisedPlanOutput = document.getElementById('revised-plan-output');
-    let processedContent = content
-        .replace(/<\/?p>/g, '')
-        .replace(/([^\n])\n([^\n])/g, '$1 $2')
-        .replace(/\n\n+/g, '\n\n')
-        .split('\n\n')
-        .filter(para => para.trim())
-        .map(para => para.trim())
-        .join('\n\n');
-
-    const htmlContent = md.render(processedContent);
-    revisedPlanOutput.innerHTML = htmlContent;
-}
-
-// Update function to handle the revised structured outline output
-function updateRevisedStructuredOutput(content) {
-    const revisedStructuredOutput = document.getElementById('revised-structured-output');
-
-    if (typeof content === 'object') {
-        const formattedJson = JSON.stringify(content, null, 2)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/(".*?")/g, '<span class="json-string">$1</span>')
-            .replace(/\b(true|false|null)\b/g, '<span class="json-keyword">$1</span>');
-        revisedStructuredOutput.innerHTML = `<pre>${formattedJson}</pre>`;
-    } else {
-        const htmlContent = md.render(content);
-        revisedStructuredOutput.innerHTML = htmlContent;
-    }
-}
-
-// Main Article Generation Function
-function writeArticle() {
-    const topic = document.getElementById('topic').value;
-    const style = document.getElementById('style-select').value;
-    const length = document.getElementById('length-select').value;
-    const provider = document.getElementById('provider').value;
-    const includeHeaders = document.getElementById('includeHeaders').checked;
-    
-    if (!topic) {
-        alert('Please enter a topic');
+  
+    await fetchStyles();
+  
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const topic = document.getElementById('topic').value.trim();
+      const style = document.getElementById('style').value;
+      const length = document.getElementById('length').value;
+      const includeHeaders = document.getElementById('includeHeaders').value === "true";
+  
+      if (!topic) {
+        alert("Please enter a topic.");
         return;
-    }
+      }
+  
+      startGeneration(topic, style, length, includeHeaders);
+    });
+  
+    function startGeneration(topic, style, length, includeHeaders) {
+      resetUI();
+      outputSection.classList.remove('hidden');
 
-    hideInputContainer();
+      const includeAudio = document.getElementById('includeAudio').value; 
 
-    // Clear previous outputs
-    document.getElementById('narrative-output').innerHTML = '';
-    document.getElementById('structured-output').innerHTML = '';
-    document.getElementById('revised-plan-output').innerHTML = '';
-    document.getElementById('revised-structured-output').innerHTML = '';
-    document.getElementById('article-output').innerHTML = '';
-
-    // Update the loading state selectors
-    document.querySelector('.narrative-plan').classList.add('loading');
-    document.querySelector('.structured-plan').classList.add('loading');
-    document.querySelector('.revised-plan').classList.add('loading');
-    document.querySelector('.revised-structured-plan').classList.add('loading');
-    document.querySelector('.written-article').classList.add('loading');
-
-    const eventSource = new EventSource('/api/v1/write-article-stream?' + new URLSearchParams({
+      const params = new URLSearchParams({
         topic: topic,
         style: style,
         length: length,
-        provider: provider,
-        includeHeaders: includeHeaders
-    }));
-
-    eventSource.onmessage = function(event) {
-        console.log('Received event data:', event.data);
-        const data = JSON.parse(event.data);
-
-        if (data.type === 'plan') {
-            updateNarrativeOutput(data.content);
-            document.querySelector('.narrative-plan').classList.remove('loading');
-        } else if (data.type === 'outline') {
-            updateStructuredOutput(data.content);
-            document.querySelector('.structured-plan').classList.remove('loading');
-        } else if (data.type === 'revised_plan') {
-            updateRevisedPlanOutput(data.content);
-            document.querySelector('.revised-plan').classList.remove('loading');
-        } else if (data.type === 'revised_outline') {
-            updateRevisedStructuredOutput(data.content);
-            document.querySelector('.revised-structured-plan').classList.remove('loading');
-        } else if (data.type === 'article') {
-            updateArticleOutput(data.content);
-            document.querySelector('.written-article').classList.remove('loading');
-            showTryAgainButton();
-        } else if (data.type === 'error') {
-            console.error('Error:', data.content);
-            eventSource.close();
-            alert('An error occurred while generating the article.');
-            document.querySelectorAll('.panel').forEach(panel => {
-                panel.classList.remove('loading');
-            });
+        provider: 'openai',
+        includeHeaders: includeHeaders,
+        includeAudio: includeAudio
+      });
+  
+      sseSource = new EventSource(`/api/v1/write-article-stream?${params.toString()}`);
+  
+      sseSource.onmessage = (event) => {
+        if (event.data === "" && event.lastEventId === "end") {
+          sseSource.close();
+          statusMessage.textContent = "Generation complete.";
+          return;
         }
-    };
-
-    eventSource.addEventListener('end', function(event) {
-        eventSource.close();
-        console.log('Article generation completed.');
-        document.querySelectorAll('.panel').forEach(panel => {
-            panel.classList.remove('loading');
-        });
-    });
-
-    eventSource.onerror = function(event) {
-        console.error('Error event:', event);
-        eventSource.close();
-        alert('An error occurred while generating the article.');
-        document.querySelectorAll('.panel').forEach(panel => {
-            panel.classList.remove('loading');
-        });
-    };
-}
-
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    loadStyles();
-    
-    const textarea = document.getElementById('topic');
-    textarea.addEventListener('input', autoResizeTextarea);
-    
-    const articleOutput = document.getElementById('article-output');
-    if (articleOutput && articleOutput.textContent.trim()) {
-        updateArticleOutput(articleOutput.textContent);
-    }
-
-    const narrativeOutput = document.getElementById('narrative-output');
-    if (narrativeOutput && narrativeOutput.textContent.trim()) {
-        updateNarrativeOutput(narrativeOutput.textContent);
-    }
-
-    document.querySelector('.style-modal-close').addEventListener('click', (e) => {
-        e.preventDefault();
-        hideStyleInfo();
-    });
-    
-    document.querySelector('.style-modal-overlay').addEventListener('click', (e) => {
-        if (e.target === e.currentTarget) {
-            hideStyleInfo();
+  
+        try {
+          const msg = JSON.parse(event.data);
+          cumulativeData.push(msg);
+          rawDataToggle.classList.remove('hidden');
+  
+          // Update raw data display
+          rawData.textContent = JSON.stringify(cumulativeData, null, 2);
+  
+          // Handle different event types
+          handleEvent(msg);
+        } catch (err) {
+          console.error("Error parsing SSE message:", err);
         }
-    });
-
-    // Initialize length-based UI updates
-    updateUIForLength();
-    document.getElementById('length-select').addEventListener('change', updateUIForLength);
-});
+      };
+  
+      sseSource.onerror = (error) => {
+        console.error("SSE error:", error);
+        statusMessage.textContent = "Error occurred. Check console.";
+        if (sseSource) {
+          sseSource.close();
+        }
+      };
+    }
+  
+    function resetUI() {
+      // Reset progress steps
+      document.querySelectorAll('.status-icon').forEach(icon => {
+        icon.classList.remove('bg-green-500', 'bg-red-500', 'bg-indigo-500');
+        icon.classList.add('bg-gray-300');
+      });
+      statusMessage.textContent = "Waiting for server response...";
+      rawData.textContent = "";
+      rawData.classList.add('hidden');
+      rawDataVisible = false;
+      rawDataToggle.classList.add('hidden');
+      articleContent.innerHTML = "";
+      finalArticle.classList.add('hidden');
+      audioSection.classList.add('hidden');
+      articleAudio.src = "";
+      cumulativeData = [];
+    }
+  
+    function handleEvent(msg) {
+      switch(msg.type) {
+        case 'plan':
+          updateStep('plan', true);
+          statusMessage.textContent = "Plan received.";
+          break;
+        case 'outline':
+          updateStep('outline', true);
+          statusMessage.textContent = "Outline received.";
+          break;
+        case 'revised_plan':
+          updateStep('revised_plan', true);
+          statusMessage.textContent = "Revised plan received.";
+          break;
+        case 'revised_outline':
+          updateStep('revised_outline', true);
+          statusMessage.textContent = "Revised outline received.";
+          break;
+        case 'article':
+          updateStep('article', true);
+          statusMessage.textContent = "Final article received.";
+          displayArticle(msg.content);
+          break;
+        case 'audio':
+          updateStep('audio', true);
+          statusMessage.textContent = "Audio file received.";
+          displayAudio(msg.content);
+          break;
+        case 'audio_error':
+          updateStep('audio', false);
+          statusMessage.textContent = "Error generating audio.";
+          break;
+        case 'error':
+          statusMessage.textContent = "An error occurred: " + msg.content;
+          console.error("Error from server:", msg.content);
+          break;
+        default:
+          // Other events
+          console.log("Unknown event type:", msg);
+      }
+    }
+  
+    function updateStep(step, success) {
+      const icon = document.querySelector(`.status-icon[data-step="${step}"]`);
+      if (icon) {
+        icon.classList.remove('bg-gray-300');
+        icon.classList.add(success ? 'bg-green-500' : 'bg-red-500');
+      }
+    }
+  
+    function displayArticle(content) {
+      finalArticle.classList.remove('hidden');
+      // Content is pre-formatted markdown, we can just insert as HTML
+      const escapedContent = content
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      // Convert newlines to paragraphs or just trust the formatting
+      // We'll trust formatting and add <p> tags where double newlines appear:
+      const htmlContent = escapedContent
+        .split(/\n\n+/)
+        .map(par => `<p>${par.replace(/\n/g, ' ')}</p>`)
+        .join("");
+      articleContent.innerHTML = htmlContent;
+    }
+  
+    function displayAudio(audioPath) {
+      audioSection.classList.remove('hidden');
+      // audioPath is relative to frontend/output, so prepend /frontend/ if needed
+      const fullPath = audioPath.startsWith('output/') ? `/frontend/${audioPath}` : audioPath;
+      articleAudio.src = fullPath;
+    }
+  
+    window.toggleRawData = function() {
+      rawDataVisible = !rawDataVisible;
+      if (rawDataVisible) {
+        rawData.classList.remove('hidden');
+      } else {
+        rawData.classList.add('hidden');
+      }
+    }
+    
+  });
+  
