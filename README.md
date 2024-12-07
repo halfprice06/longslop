@@ -76,7 +76,6 @@ This project leverages:
 ## Requirements
 
 - Python 3.9+
-- Node.js (optional, if you want to further process the frontend)
 - OpenAI API Key and/or Anthropic API Key
 - ElevenLabs API Key (for TTS)
 - A `.env` file containing the required API keys, for example:
