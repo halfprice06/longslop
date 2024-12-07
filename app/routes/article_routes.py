@@ -28,7 +28,7 @@ async def write_article_stream(
     length: str = "long",
     provider: str = "openai",
     includeHeaders: bool = True,
-    includeAudio: bool = True  # new parameter
+    includeAudio: bool = False  # new parameter
 ):
     # Convert length string to enum
     try:
