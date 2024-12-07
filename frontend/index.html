@@ -1,183 +1,126 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-gray-50">
 <head>
-    <meta charset="UTF-8">
-    <title>longslop</title>
-    <link rel="stylesheet" href="styles.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LongSlop - AI Story Generator</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/frontend/style.css">
 </head>
-<body>
-    <div class="container">
-        <h1>longslop</h1>
-        
-        <div class="written-article panel">
-            <div class="panel-header">
-                <h2>Article</h2>
-            </div>
-            <div class="panel-content">
-                <div id="article-output">The complete article will appear here...</div>
-            </div>
-        </div>
-        
-        <div class="audio-panel panel" style="display: none;">
-            <div class="panel-header">
-                <h2>Audio Version</h2>
-            </div>
-            <div class="panel-content">
-                <audio id="article-audio" controls style="width: 100%;">
-                    Your browser does not support the audio element.
-                </audio>
-                <div id="audio-status" style="margin-top: 10px; text-align: center;">
-                    Generating audio...
-                </div>
-            </div>
-        </div>
-        
-        <div class="main-layout">
-            <!-- Left column -->
-            <div class="content-column">
-                <div class="input-container">
-                    <div class="input-section">
-                        <div class="input-group">
-                            <label for="topic">Topic</label>
-                            <textarea 
-                                id="topic" 
-                                placeholder="What would you like an article about? Be as specific as you'd like..."
-                                rows="1"
-                                onkeypress="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); writeArticle(); }"
-                            ></textarea>
-                        </div>
-                        <div class="input-group">
-                            <label for="style-select">
-                                Writing Style
-                                <a href="#" class="style-info-link" onclick="showStyleInfo(event)">(Learn more)</a>
-                            </label>
-                            <select id="style-select" class="style-select">
-                                <!-- Publications -->
-                                <option value="new_yorker">The New Yorker</option>
-                                <option value="atlantic">The Atlantic</option>
-                                <option value="economist">The Economist</option>
-                                <option value="london_review">London Review of Books</option>
-                                <option value="scientific_american">Scientific American</option>
-                                <option value="vox">Vox</option>
-                                <option value="jane_austen">Jane Austen</option>
-                                <option value="mark_twain">Mark Twain</option>
-                                <option value="hemingway">Hemingway</option>
-                                <option value="agatha_christie">Agatha Christie</option>
-                                <option value="shakespeare">William Shakespeare</option>
-                                <option value="edgar_allan_poe">Edgar Allan Poe</option>
-                                <option value="stephen_king">Stephen King</option>
-                                <option value="gaiman">Neil Gaiman</option>
-                                <option value="ray_bradbury">Ray Bradbury</option>
-                                <option value="isaac_asimov">Isaac Asimov</option>
-                                <option value="atwood">Margaret Atwood</option>
-                                <option value="tolkien">J.R.R. Tolkien</option>
-                        </div>
-                        <div class="input-group">
-                            <label for="length-select">Article Length:</label>
-                            <select id="length-select" name="length">
-                                <option value="short">Short</option>
-                                <option value="medium">Medium</option>
-                                <option value="long" selected>Long</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="provider">AI Provider:</label>
-                            <select id="provider" name="provider" class="form-control">
-                                <option value="openai">OpenAI</option>
-                                <option value="anthropic">Anthropic (Claude)</option>
-                            </select>
-                        </div>
-                        <label for="includeHeaders">Include Headers</label>
-                        <input type="checkbox" id="includeHeaders" name="includeHeaders" checked>
-                    </div>
-                    <button id="generateButton" onclick="writeArticle()" class="generate-button">Generate Article</button>
-                </div>
+<body class="h-full flex flex-col">
 
-                <div class="output-section">
-                    <div class="planning-section">
-                        <div class="planning-header" onclick="togglePlanning()">
-                            <h2>Planning</h2>
-                            <span class="toggle-icon">▼</span>
-                        </div>
-                        <div class="planning-content">
-                            <div class="panel narrative-plan">
-                                <div class="panel-header">
-                                    <h2>Initial Plan</h2>
-                                </div>
-                                <div class="panel-content">
-                                    <div id="narrative-output">Enter a topic and click "Generate Article" to start...</div>
-                                </div>
-                            </div>
-                            <div class="panel structured-plan">
-                                <div class="panel-header">
-                                    <h2>Structured Outline</h2>
-                                </div>
-                                <div class="panel-content">
-                                    <div id="structured-output">The structured outline will appear here...</div>
-                                </div>
-                            </div>
-
-                            <!-- New panel for Revised Plan -->
-                            <div class="panel revised-plan">
-                                <div class="panel-header">
-                                    <h2>Revised Plan</h2>
-                                </div>
-                                <div class="panel-content">
-                                    <div id="revised-plan-output">The revised plan will appear here...</div>
-                                </div>
-                            </div>
-
-                            <!-- New panel for Revised Outline -->
-                            <div class="panel revised-structured-plan">
-                                <div class="panel-header">
-                                    <h2>Revised Outline</h2>
-                                </div>
-                                <div class="panel-content">
-                                    <div id="revised-structured-output">The revised structured outline will appear here...</div>
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right column -->
-            <div class="style-column">
-                <div class="style-info">
-                    <!-- Style info will be populated by JavaScript -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Add this after the main-layout div -->
-        <div class="style-modal-overlay">
-            <div class="style-modal">
-                <button class="style-modal-close">&times;</button>
-                <div class="style-info">
-                    <!-- Style info content will be inserted here -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Add this after your existing content -->
-        <div id="past-articles" class="section">
-            <h2>Past Articles</h2>
-            <div class="article-list">
-                <!-- Articles will be listed here -->
-            </div>
-            <div class="article-viewer" style="display: none;">
-                <button class="back-button">← Back to List</button>
-                <div class="article-content">
-                    <!-- Selected article content will be shown here -->
-                </div>
-            </div>
-        </div>
+  <header class="border-b bg-white shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <h1 class="text-2xl font-bold text-gray-800">
+        LongSlop AI Story Generator
+      </h1>
+      <p class="text-sm text-gray-500">Crafted with AI and SSE streaming</p>
     </div>
-    <script src="script.js"></script>
+  </header>
+
+  <main class="flex-grow">
+
+    <div class="max-w-7xl mx-auto px-4 py-6">
+      
+      <!-- Input Form -->
+      <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+        <h2 class="text-xl font-semibold text-gray-700 mb-4">Generate a New Story</h2>
+        <form id="generateForm" class="space-y-4">
+          <div>
+            <label for="topic" class="block font-medium text-gray-700 mb-2">Topic</label>
+            <input type="text" id="topic" name="topic" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-indigo-200" placeholder="e.g. A journey through a mystical forest"/>
+          </div>
+          <div class="flex flex-col md:flex-row md:space-x-4">
+            <div class="flex-1">
+              <label for="style" class="block font-medium text-gray-700 mb-2">Style</label>
+              <select id="style" name="style" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-indigo-200">
+                <!-- Options populated by script.js -->
+              </select>
+            </div>
+            <div class="flex-1">
+              <label for="length" class="block font-medium text-gray-700 mb-2">Length</label>
+              <select id="length" name="length" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-indigo-200">
+                <option value="short">Short</option>
+                <option value="medium">Medium</option>
+                <option value="long">Long</option>
+              </select>
+            </div>
+            <div class="flex-1">
+              <label for="includeHeaders" class="block font-medium text-gray-700 mb-2">Include Headers</label>
+              <select id="includeHeaders" name="includeHeaders" class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-indigo-200">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded font-medium hover:bg-indigo-700 focus:outline-none">
+              Generate
+            </button>
+          </div>
+        </form>
+      </div>
+      
+      <!-- Progress and Output Section -->
+      <div id="outputSection" class="hidden">
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+          <h2 class="text-xl font-semibold text-gray-700 mb-4">Generation Progress</h2>
+          <div class="mb-4">
+            <div id="progressSteps" class="flex flex-col space-y-2 text-gray-700">
+              <div class="flex items-center space-x-2">
+                <span class="status-icon w-4 h-4 inline-block rounded-full bg-gray-300" data-step="plan"></span>
+                <span>Plan</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="status-icon w-4 h-4 inline-block rounded-full bg-gray-300" data-step="outline"></span>
+                <span>Outline</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="status-icon w-4 h-4 inline-block rounded-full bg-gray-300" data-step="revised_plan"></span>
+                <span>Revised Plan</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="status-icon w-4 h-4 inline-block rounded-full bg-gray-300" data-step="revised_outline"></span>
+                <span>Revised Outline</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="status-icon w-4 h-4 inline-block rounded-full bg-gray-300" data-step="article"></span>
+                <span>Article</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="status-icon w-4 h-4 inline-block rounded-full bg-gray-300" data-step="audio"></span>
+                <span>Audio</span>
+              </div>
+            </div>
+          </div>
+          <div class="text-sm text-gray-500 mb-4" id="statusMessage">Waiting for server response...</div>
+          <div id="rawDataToggle" class="mb-4 hidden">
+            <button class="text-indigo-600 underline text-sm" onclick="toggleRawData()">Toggle Raw JSON Data</button>
+          </div>
+          <pre id="rawData" class="hidden text-xs bg-gray-100 p-2 overflow-auto max-h-64 rounded border border-gray-300"></pre>
+        </div>
+
+        <div id="finalArticle" class="bg-white p-6 rounded-lg shadow-md mb-8 hidden">
+          <h2 class="text-xl font-semibold text-gray-700 mb-4">Final Article</h2>
+          <div id="articleContent" class="prose max-w-none"></div>
+        </div>
+
+        <div id="audioSection" class="bg-white p-6 rounded-lg shadow-md mb-8 hidden">
+          <h2 class="text-xl font-semibold text-gray-700 mb-4">Audio</h2>
+          <p>Your article has been converted to audio:</p>
+          <audio id="articleAudio" controls class="mt-4 w-full"></audio>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-white border-t py-4">
+    <div class="max-w-7xl mx-auto px-4 text-sm text-gray-500">
+      &copy; 2024 LongSlop. All rights reserved.
+    </div>
+  </footer>
+
+  <script src="/frontend/script.js"></script>
 </body>
-</html> 
+</html>

@@ -12,8 +12,6 @@ from dotenv import load_dotenv
 import openai
 import instructor
 
-
-
 # Local imports
 from app.services.audio_service import AudioService
 from app.constants.forbidden_words import FORBIDDEN_WORDS

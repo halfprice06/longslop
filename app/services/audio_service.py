@@ -1,7 +1,7 @@
 import base64
 from typing import List, Dict, Set
 import os
-from elevenlabs import ElevenLabs
+from elevenlabs import ElevenLabs, VoiceSettings
 from app.schemas import SceneLine, SceneScript
 import dotenv
 import uuid
@@ -80,7 +80,8 @@ class AudioService:
                 voice_id=voice_id,
                 model_id="eleven_multilingual_v2",
                 text=text,
-                output_format="mp3_44100_128"
+                output_format="mp3_44100_128",
+                settings=VoiceSettings(stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True)
             )
             
             # Convert generator to bytes by reading all chunks
