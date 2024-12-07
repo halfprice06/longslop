@@ -83,7 +83,6 @@ This project leverages:
   OPENAI_API_KEY=your_openai_key
   ANTHROPIC_API_KEY=your_anthropic_key
   ELEVENLABS_API_KEY=your_elevenlabs_key
-  DEBUG=true
   ```
 
 ## Setup and Installation
