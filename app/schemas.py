@@ -50,9 +50,9 @@ class MediumArticleStructure(BaseModel):
 # Long article structure (full hierarchy)
 class LongArticleStructure(BaseModel):
     title: str
-    intro_paragraphs: List[str]
+    intro_paragraphs: List[Scene]
     main_headings: List[MainHeading]
-    conclusion_paragraphs: List[str]
+    conclusion_paragraphs: List[Scene]
 
 # Enum for article length
 class ArticleLength(str, Enum):
