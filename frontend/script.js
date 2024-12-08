@@ -451,4 +451,25 @@ document.addEventListener("DOMContentLoaded", async () => {
       const fullPath = audioPath.startsWith('output/') ? `/frontend/${audioPath}` : audioPath;
       articleAudio.src = fullPath;
     }
+
+    const tabs = document.querySelectorAll('.game-tab');
+    const snakeContainer = document.getElementById('snakeGameContainer');
+    const glitchoutContainer = document.getElementById('glitchoutGameContainer');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        const game = tab.getAttribute('data-game');
+        if (game === 'snake') {
+            snakeContainer.classList.add('active');
+            glitchoutContainer.classList.remove('active');
+        } else {
+            glitchoutContainer.classList.add('active');
+            snakeContainer.classList.remove('active');
+        }
+        });
+    });
   });
+

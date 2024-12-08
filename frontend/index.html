@@ -112,25 +112,15 @@
       text-transform: uppercase;
     }
 
-    /* Adjusted progress steps and other elements to align with the retro feel */
     .status-icon {
       border: 1px solid #00ff00;
       box-sizing: border-box;
-    }
-    .status-icon[data-step="plan"]:before {
-      content: ">";
-      color: #00ff00;
-      position: relative;
-      top: -2px;
-      left: -2px;
-      font-size: 10px;
     }
 
     #rawData {
       font-family: 'Press Start 2P', monospace;
     }
 
-    /* Improve the article content styling */
     #articleContent p {
       margin-bottom: 16px;
       color: #00ff00;
@@ -140,7 +130,6 @@
       color: #fff;
     }
 
-    /* Scene and image styling */
     .scene {
       margin-bottom: 2rem;
       padding: 1rem;
@@ -162,13 +151,11 @@
       box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
     }
 
-    /* Add a subtle glow effect on image hover */
     .scene-image img:hover {
       box-shadow: 0 0 25px rgba(0, 255, 0, 0.5);
       transition: box-shadow 0.3s ease-in-out;
     }
 
-    /* Footer styling */
     footer {
       text-align: center;
       font-size: 10px;
@@ -181,14 +168,12 @@
       text-decoration: underline;
     }
 
-    /* Make container boxes more "terminal"-like with padding */
     .terminal-panel {
       padding: 16px;
       background: #000000;
       position: relative;
     }
 
-    /* Add some ASCII corner style effects */
     .terminal-panel::before, .terminal-panel::after {
       content: "";
       position: absolute;
@@ -203,12 +188,10 @@
       opacity: 0.5;
     }
 
-    /* Keep the scanning lines subtle and text highly readable */
     .prose {
       color: #fff;
     }
 
-    /* Modal styles */
     .modal {
       display: none;
       position: fixed;
@@ -293,7 +276,6 @@
       color: #fff;
     }
 
-    /* Custom Scrollbar Styling */
     ::-webkit-scrollbar {
         width: 12px;
         background: #000000;
@@ -312,7 +294,6 @@
         background: #001100;
     }
 
-    /* Outline Styles */
     .outline-content {
       padding: 1rem;
       color: #00ff00;
@@ -365,7 +346,6 @@
       text-transform: uppercase;
     }
 
-    /* Add a subtle glow effect on hover */
     .outline-item:hover {
       text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
     }
@@ -373,6 +353,47 @@
     .outline-item:hover::before {
       text-shadow: 0 0 5px #00ff00;
     }
+
+    /* Adjusting main container to use more space */
+    main .container-expanded {
+      max-width: 90vw;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    /* Game tabs */
+    .game-tabs {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .game-tab {
+      cursor: pointer;
+      padding: 4px 8px;
+      border: 2px solid #00ff00;
+      text-transform: uppercase;
+      font-size: 10px;
+    }
+    .game-tab.active {
+      background: #00ff00;
+      color: #000000;
+    }
+
+    .game-container {
+      position: relative;
+      width: 100%;
+      display: none;
+    }
+    .game-container.active {
+      display: block;
+    }
+
+    .game-instructions {
+      font-size: 10px;
+      color: #cccccc;
+      margin-bottom: 8px;
+    }
+
   </style>
 </head>
 <body class="h-full flex flex-col">
@@ -411,11 +432,11 @@
   </div>
 
   <header class="w-full border-b-2 border-green-500 bg-black text-center p-4">
-    <img src="/frontend/assets/banner.png" alt="LongSlop Banner" class="pixelated mx-auto" style="width:768px; height:auto;"/>
+    <img src="/frontend/assets/banner.png" alt="LongSlop Banner" class="pixelated mx-auto" style="height:auto;max-width:50%;"/>
   </header>
 
-  <main class="flex-grow">
-    <div class="max-w-3xl mx-auto px-4 py-6">
+  <main class="flex-grow container-expanded">
+    <div class="w-full">
       
       <!-- Input Form -->
       <div class="pixel-border terminal-panel mb-8">
@@ -429,7 +450,6 @@
             <div class="flex-1">
               <label for="style" class="block pixel-subheading">Style</label>
               <select id="style" name="style" class="pixel-input">
-                <!-- Options populated by script.js -->
               </select>
             </div>
             <div class="flex-1">
@@ -487,16 +507,35 @@
             </div>
           </div>
           <div class="text-sm mb-4" id="statusMessage" style="color:#cccccc;">Waiting for server response...</div>
-          <!-- Waiting game container -->
-            <div id="waitingGame" class="hidden text-white mt-4">
-                <h3 class="text-md font-bold mb-2" style="color:#00ff00;">While you wait...</h3>
-                <p class="mb-2">Try this guessing game! Guess a number between 1 and 100.</p>
-                <div class="mb-2">
+
+          <div id="waitingGame" class="hidden text-white mt-4">
+              <h3 class="text-md font-bold mb-2" style="color:#00ff00;">While you wait...</h3>
+              <p class="mb-2">Try this guessing game! Guess a number between 1 and 100.</p>
+              <div class="mb-2">
                 <input type="number" id="guessInput" class="pixel-input w-24" placeholder="Your guess"/>
                 <button id="guessButton" class="pixel-button ml-2">Guess</button>
-                </div>
-                <div id="guessFeedback" class="text-sm"></div>
-            </div>  
+              </div>
+              <div id="guessFeedback" class="text-sm mb-4"></div>
+
+              <!-- Game Tabs -->
+              <div class="game-tabs">
+                <div class="game-tab active" data-game="snake">Sloppy Snake</div>
+                <div class="game-tab" data-game="glitchout">Glitchout</div>
+              </div>
+
+              <!-- Snake Game Container -->
+              <div class="game-container active" id="snakeGameContainer">
+                <p class="game-instructions">Use arrow keys to move. Space to pause. Eat apples, watch out for obstacles and glitches. Power-ups appear occasionally (yellow). More glitch level = more chaos!</p>
+                <canvas id="snakeCanvas" width="600" height="600" style="border:1px solid #00ff00;"></canvas>
+              </div>
+
+              <!-- Glitchout Game Container (Breakout-like) -->
+              <div class="game-container" id="glitchoutGameContainer">
+                <p class="game-instructions">Use left/right arrow keys to move the paddle. Press Space to launch the ball. Break bricks, watch out for glitchy effects!</p>
+                <canvas id="glitchoutCanvas" width="600" height="400" style="border:1px solid #00ff00;"></canvas>
+              </div>
+
+          </div>  
         </div>
 
         <div id="finalArticle" class="pixel-border terminal-panel mb-8 hidden">
@@ -514,11 +553,13 @@
   </main>
 
   <footer class="bg-black border-t-2 border-green-500 py-4 text-center">
-    <div class="max-w-7xl mx-auto px-4 text-sm text-green-500">
+    <div class="text-sm text-green-500">
       &copy; 2024 <span style="color:#00ff00;">longslop</span>. All rights reserved.
     </div>
   </footer>
 
   <script src="/frontend/script.js"></script>
+  <script src="/frontend/snake.js"></script>
+  <script src="/frontend/glitchout.js"></script>
 </body>
 </html>

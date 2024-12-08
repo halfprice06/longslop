@@ -1,5 +1,5 @@
 import base64
-from typing import List, Dict, Set, Literal
+from typing import List, Dict, Set, Literal, Optional
 import os
 import json
 import uuid
@@ -33,25 +33,53 @@ logger = logging.getLogger(__name__)
 ProviderType = Literal["openai", "anthropic"]
 
 def normalize_speaker_name(speaker: str) -> str:
-    """Normalize speaker names to ensure consistency."""
+    """
+    Normalize speaker names to ensure consistency, handling complex cases like 'Ghost of Miranda's Mother'.
+    """
     # First handle special case for narrator
     if speaker.strip().lower() == "narrator":
         return "Narrator"
     
-    # Split on apostrophe to handle possessives
-    parts = speaker.strip().split("'")
+    # Handle the full name as one unit first
+    name = speaker.strip()
     
-    # Normalize each part (before and after apostrophe)
-    normalized_parts = []
-    for part in parts:
-        # Title case the part, but lowercase 's' if it's a possessive
-        if part.lower().startswith('s') and len(normalized_parts) > 0:
-            normalized_parts.append('s')
+    # Split into words while preserving possessives
+    words = []
+    current_word = []
+    
+    for char in name:
+        if char == ' ':
+            if current_word:
+                words.append(''.join(current_word))
+                current_word = []
+            words.append(char)
+        elif char == "'":
+            current_word.append(char)
         else:
-            normalized_parts.append(part.title())
+            current_word.append(char)
     
-    # Rejoin with apostrophe
-    return "'".join(normalized_parts)
+    if current_word:
+        words.append(''.join(current_word))
+    
+    # Process each word
+    normalized_words = []
+    for word in words:
+        if word == ' ':
+            normalized_words.append(word)
+        elif word.lower() in ['of', 'the', 'and', 'in', 'on', 'at']:
+            normalized_words.append(word.lower())
+        else:
+            # Handle possessives
+            if "'" in word:
+                base, possessive = word.split("'", 1)
+                if possessive.lower().startswith('s'):
+                    normalized_words.append(f"{base.title()}'s")
+                else:
+                    normalized_words.append(f"{base.title()}'{possessive}")
+            else:
+                normalized_words.append(word.title())
+    
+    return ''.join(normalized_words)
 
 class AudioService:
     def __init__(self, provider: ProviderType = "anthropic"):
@@ -105,11 +133,21 @@ class AudioService:
         """Extract all unique speakers from the script."""
         print("Extracting speakers from script...")
         speakers = set()
-        speakers.add("Narrator")  # Always include narrator with correct capitalization
+        
+        # Track original names for validation
+        original_to_normalized = {}
         
         for paragraph in script.paragraphs:
             for line in paragraph.lines:
-                speakers.add(normalize_speaker_name(line.speaker))
+                original = line.speaker
+                normalized = normalize_speaker_name(original)
+                if original not in original_to_normalized:
+                    original_to_normalized[original] = normalized
+                elif original_to_normalized[original] != normalized:
+                    raise ValueError(f"Inconsistent speaker name normalization. '{original}' was normalized differently in different places: '{original_to_normalized[original]}' vs '{normalized}'")
+                speakers.add(normalized)
+                # Update the line's speaker to use normalized version
+                line.speaker = normalized
         
         print(f"Found {len(speakers)} unique speakers: {speakers}")
         return speakers
@@ -276,22 +314,24 @@ Do not include any extra commentary, only return the JSON result.
         self.voice_mapping = voice_mapping
         return self.voice_mapping
 
-    def generate_audio_for_text(self, text: str, voice_id: str) -> bytes:
-        """Generate audio for a single piece of text using ElevenLabs TTS API."""
-        print(f"Generating audio for text (length: {len(text)}) with voice ID: {voice_id}")
+    def generate_audio_for_text(self, text: str, voice_id: str) -> Optional[bytes]:
+        """
+        Generate audio for a single piece of text using ElevenLabs TTS API.
+        Returns None if generation fails.
+        """
         try:
+            print(f"Generating audio for text (length: {len(text)}) with voice ID: {voice_id}")
             # Get the generator from the API
             audio_generator = self.client.text_to_speech.convert(
                 voice_id=voice_id,
                 model_id="eleven_multilingual_v2",
                 text=text,
-                output_format="mp3_44100_128",
-                voice_settings={
-                    "stability": 0.5,
-                    "similarity_boost": 0.75,
-                    "style": 0.0,
-                    "use_speaker_boost": True
-                }
+                voice_settings=VoiceSettings(
+                    stability=0.5,
+                    similarity_boost=0.75,
+                    style=0.0,
+                    use_speaker_boost=True
+                )
             )
             
             # Convert generator to bytes by reading all chunks
@@ -306,45 +346,8 @@ Do not include any extra commentary, only return the JSON result.
             return audio_data
             
         except Exception as e:
-            print(f"Error generating audio for text: {e}")
-            return b""  # Return empty bytes on error
-    
-    def stitch_audio_segments(self, audio_segments: List[bytes]) -> bytes:
-        """Combine multiple audio segments into a single MP3 file."""
-        print(f"Stitching {len(audio_segments)} audio segments together...")
-        
-        if not audio_segments:
-            return b""
-
-        # Create a temporary directory to store individual segments
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Save each segment to a temporary file
-            temp_files = []
-            for i, segment in enumerate(audio_segments):
-                if segment:  # Only process non-empty segments
-                    temp_path = os.path.join(temp_dir, f"segment_{i}.mp3")
-                    with open(temp_path, "wb") as f:
-                        f.write(segment)
-                    temp_files.append(temp_path)
-            
-            # Use ffmpeg to concatenate MP3 files
-            output_path = os.path.join(temp_dir, "output.mp3")
-            concat_list = os.path.join(temp_dir, "concat.txt")
-            
-            # Create concat file for ffmpeg
-            with open(concat_list, "w") as f:
-                for temp_file in temp_files:
-                    f.write(f"file '{temp_file}'\n")
-            
-            # Run ffmpeg
-            os.system(f'ffmpeg -f concat -safe 0 -i "{concat_list}" -c copy "{output_path}"')
-            
-            # Read the final output
-            with open(output_path, "rb") as f:
-                combined_audio = f.read()
-        
-        print(f"Final audio size: {len(combined_audio)} bytes")
-        return combined_audio
+            print(f"Warning: Failed to generate audio for text: '{text[:100]}...' with voice {voice_id}. Error: {str(e)}")
+            return None
 
     def process_article(self, script: SceneScript) -> str:
         """Main function to process entire script and generate full audio. Returns the filename."""
@@ -360,33 +363,75 @@ Do not include any extra commentary, only return the JSON result.
         # 3. Generate audio segments
         print("Starting audio generation...")
         audio_segments = []
+        failed_segments = []
         
         # Add title narration
         title_audio = self.generate_audio_for_text(script.scene_title, voice_mapping.get("Narrator", self.available_voices[0].voice_id))
         if title_audio:
             audio_segments.append(title_audio)
+        else:
+            failed_segments.append(("Title", script.scene_title))
         
-        # Process each paragraph
+        # Process each line
         for paragraph in script.paragraphs:
             for line in paragraph.lines:
-                voice_id = voice_mapping[line.speaker]  # Use assigned voices
-                print(f"Processing line for speaker '{line.speaker}' with voice '{voice_id}'")
+                voice_id = voice_mapping.get(line.speaker)
+                if not voice_id:
+                    print(f"Warning: No voice mapping found for speaker: {line.speaker}")
+                    failed_segments.append((line.speaker, line.text))
+                    continue
+                
                 audio = self.generate_audio_for_text(line.text, voice_id)
-                if audio:  # Only append if we got valid audio
+                if audio:
                     audio_segments.append(audio)
+                else:
+                    failed_segments.append((line.speaker, line.text))
         
-        # 4. Stitch together all segments
-        print("Finalizing audio processing...")
-        final_audio = self.stitch_audio_segments(audio_segments)
+        if not audio_segments:
+            raise ValueError("No audio segments were successfully generated")
         
-        # 5. Save to file with unique name
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        unique_id = str(uuid.uuid4())[:8]
-        filename = f"story_{timestamp}_{unique_id}.mp3"
-        filepath = os.path.join(self.output_dir, filename)
+        # Report failed segments
+        if failed_segments:
+            print("\nWarning: The following segments failed to generate:")
+            for speaker, text in failed_segments:
+                print(f"- {speaker}: {text[:100]}...")
         
-        with open(filepath, "wb") as f:
-            f.write(final_audio)
-        
-        print(f"Script processing complete. Saved to {filepath}")
-        return filename
+        # Combine audio segments
+        print(f"\nCombining {len(audio_segments)} audio segments...")
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_files = []
+                
+                # Write each segment to a temporary file
+                for i, segment in enumerate(audio_segments):
+                    temp_path = os.path.join(temp_dir, f"segment_{i}.mp3")
+                    with open(temp_path, "wb") as f:
+                        f.write(segment)
+                    temp_files.append(temp_path)
+                
+                # Use ffmpeg to concatenate MP3 files
+                output_path = os.path.join(temp_dir, "output.mp3")
+                concat_list = os.path.join(temp_dir, "concat.txt")
+                
+                # Create concat file for ffmpeg
+                with open(concat_list, "w") as f:
+                    for temp_file in temp_files:
+                        f.write(f"file '{temp_file}'\n")
+                
+                # Run ffmpeg
+                os.system(f'ffmpeg -f concat -safe 0 -i "{concat_list}" -c copy "{output_path}"')
+                
+                # Generate unique filename
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                final_filename = f"audio_{timestamp}.mp3"
+                final_path = os.path.join(self.output_dir, final_filename)
+                
+                # Copy the combined file to the output directory
+                with open(output_path, "rb") as src, open(final_path, "wb") as dst:
+                    dst.write(src.read())
+                
+                print(f"Successfully created audio file: {final_filename}")
+                return final_filename
+                
+        except Exception as e:
+            raise ValueError(f"Failed to combine audio segments: {str(e)}")
