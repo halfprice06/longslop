@@ -95,7 +95,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         topic: topic,
         style: style,
         length: length,
-        provider: 'openai',
+        provider: 'anthropic',
         includeAudio: includeAudio
       });
   
@@ -170,6 +170,48 @@ document.addEventListener("DOMContentLoaded", async () => {
         return JSON.stringify(content, null, 2);
     }
 
+    // Helper function to format outline data in a structured way
+    function formatOutline(outline) {
+        if (typeof outline === 'string') {
+            try {
+                outline = JSON.parse(outline);
+            } catch (e) {
+                return `<div class="outline-content">${outline}</div>`;
+            }
+        }
+
+        let html = '<div class="outline-content">';
+        
+        // Handle different outline structures
+        if (Array.isArray(outline)) {
+            // Simple array structure
+            html += '<ul class="outline-list">';
+            outline.forEach(item => {
+                if (typeof item === 'object') {
+                    html += `<li class="outline-item">
+                        <span class="outline-title">${item.title || item.heading || ''}</span>
+                        ${item.content ? `<div class="outline-description">${item.content}</div>` : ''}
+                        ${item.subheadings ? formatOutline(item.subheadings) : ''}
+                    </li>`;
+                } else {
+                    html += `<li class="outline-item">${item}</li>`;
+                }
+            });
+            html += '</ul>';
+        } else if (typeof outline === 'object') {
+            // Object structure with sections
+            Object.entries(outline).forEach(([key, value]) => {
+                html += `<div class="outline-section">
+                    <h3 class="outline-section-title">${key}</h3>
+                    ${Array.isArray(value) ? formatOutline(value) : `<div class="outline-content">${value}</div>`}
+                </div>`;
+            });
+        }
+        
+        html += '</div>';
+        return html;
+    }
+
     function handleEvent(msg) {
       switch(msg.type) {
         case 'plan':
@@ -183,7 +225,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           updateStep('outline', true);
           statusMessage.textContent = "Outline received.";
           if (modalContents.outline) {
-              modalContents.outline.textContent = renderContent(msg.content);
+              modalContents.outline.innerHTML = formatOutline(msg.content);
           }
           break;
         case 'revised_plan':
@@ -197,7 +239,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           updateStep('revised_outline', true);
           statusMessage.textContent = "Revised outline received.";
           if (modalContents.revised_outline) {
-              modalContents.revised_outline.textContent = renderContent(msg.content);
+              modalContents.revised_outline.innerHTML = formatOutline(msg.content);
           }
           break;
         case 'complete_content':

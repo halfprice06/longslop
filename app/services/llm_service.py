@@ -816,7 +816,7 @@ Please write the next section that:
 - Follows this description: {scene_description}
 - Must include: {must_include}
 
-Make sure the next section flows naturally from the previous content.
+Put all of your effort into making sure that this section naturally flows from the previous section and ensure that the beginning of each section has an introduction that connects to the previous section or sets up the scene change.
 
 Make sure to bias each scene to contain a lot of character actions or dialogue. We don't want the story to drag. 
 
