@@ -188,6 +188,7 @@ For each character (including the Narrator), provide a detailed personality desc
 - Actions described about them
 - How they interact with others
 - For the Narrator, analyze their narrative style and perspective
+- ALWAYS DESCRIBE THEIR GENDER
 
 The Narrator's personality is especially important as it sets the tone for the story.
 

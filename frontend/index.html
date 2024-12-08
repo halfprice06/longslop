@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-black">
+<html lang="en" class="h-full">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -19,8 +19,11 @@
       margin: 0;
       padding: 0;
       position: relative;
-      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
+
     /* Add scanline effect overlay */
     body::after {
       content:"";
@@ -59,6 +62,9 @@
       width: 100%;
       background: #000000;
       color: #ffffff;
+      resize: none;
+      overflow: hidden;
+      min-height: 40px;
     }
     .pixel-input:focus {
       outline: none;
@@ -95,7 +101,6 @@
       position: relative;
     }
 
-    /* Add a subtle blinking cursor effect next to main headings */
     .pixel-heading::after {
       content: "█";
       color: #00ff00;
@@ -115,10 +120,6 @@
     .status-icon {
       border: 1px solid #00ff00;
       box-sizing: border-box;
-    }
-
-    #rawData {
-      font-family: 'Press Start 2P', monospace;
     }
 
     #articleContent p {
@@ -280,16 +281,13 @@
         width: 12px;
         background: #000000;
     }
-    
     ::-webkit-scrollbar-thumb {
         background: #00ff00;
         border: 2px solid #000000;
     }
-    
     ::-webkit-scrollbar-thumb:hover {
         background: #00dd00;
     }
-    
     ::-webkit-scrollbar-track {
         background: #001100;
     }
@@ -346,22 +344,6 @@
       text-transform: uppercase;
     }
 
-    .outline-item:hover {
-      text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
-    }
-
-    .outline-item:hover::before {
-      text-shadow: 0 0 5px #00ff00;
-    }
-
-    /* Adjusting main container to use more space */
-    main .container-expanded {
-      max-width: 90vw;
-      margin: 0 auto;
-      padding: 1rem;
-    }
-
-    /* Game tabs */
     .game-tabs {
       display: flex;
       gap: 1rem;
@@ -394,11 +376,20 @@
       margin-bottom: 8px;
     }
 
+    .ascii-box {
+      padding: 8px;
+      border: 2px solid #00ff00;
+      white-space: pre;
+      font-size: 10px;
+      color: #00ff00;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
   </style>
 </head>
-<body class="h-full flex flex-col">
+<body class="h-full">
 
-  <!-- Add modal containers -->
+  <!-- Modals -->
   <div id="planModal" class="modal">
     <div class="modal-content">
       <span class="modal-close">&times;</span>
@@ -432,25 +423,26 @@
   </div>
 
   <header class="w-full border-b-2 border-green-500 bg-black text-center p-4">
-    <img src="/frontend/assets/banner.png" alt="LongSlop Banner" class="pixelated mx-auto" style="height:auto;max-width:50%;"/>
+    <div class="max-w-4xl mx-auto">
+      <img src="/frontend/assets/banner.png" alt="LongSlop Banner" class="pixelated mx-auto w-full md:w-2/3"/>
+    </div>
   </header>
 
-  <main class="flex-grow container-expanded">
-    <div class="w-full">
-      
-      <!-- Input Form -->
+  <!-- Three column layout -->
+  <main class="grid grid-cols-1 md:grid-cols-3 gap-4 min-h-screen p-4 flex-grow">
+    <!-- Left Panel: Form and ASCII decoration, sticky -->
+    <div class="sticky top-0 h-screen overflow-auto p-4">
       <div class="pixel-border terminal-panel mb-8">
         <h2 class="pixel-heading text-xl">Generate a New Story</h2>
         <form id="generateForm" class="space-y-4">
           <div>
             <label for="topic" class="block pixel-subheading">Prompt</label>
-            <input type="text" id="topic" name="topic" required class="pixel-input" placeholder="e.g. A journey through a mystical forest"/>
+            <textarea id="topic" name="topic" required class="pixel-input" placeholder="e.g. A journey through a mystical forest" rows="1"></textarea>
           </div>
           <div class="flex flex-col md:flex-row md:space-x-4 space-y-4 md:space-y-0">
             <div class="flex-1">
               <label for="style" class="block pixel-subheading">Style</label>
-              <select id="style" name="style" class="pixel-input">
-              </select>
+              <select id="style" name="style" class="pixel-input"></select>
             </div>
             <div class="flex-1">
               <label for="length" class="block pixel-subheading">Length</label>
@@ -473,81 +465,94 @@
           </div>
         </form>
       </div>
-      
-      <!-- Progress and Output Section -->
-      <div id="outputSection" class="hidden">
-        <div class="pixel-border terminal-panel mb-8">
-          <h2 class="pixel-heading text-xl">Generation Progress</h2>
-          <div class="mb-4">
-            <div id="progressSteps" class="flex flex-col space-y-2 text-white">
-              <div class="flex items-center space-x-2">
-                <span class="status-icon w-4 h-4 inline-block bg-black" data-step="plan"></span>
-                <span class="clickable" data-modal="planModal">Plan</span>
-              </div>
-              <div class="flex items-center space-x-2">
-                <span class="status-icon w-4 h-4 inline-block bg-black" data-step="outline"></span>
-                <span class="clickable" data-modal="outlineModal">Outline</span>
-              </div>
-              <div class="flex items-center space-x-2">
-                <span class="status-icon w-4 h-4 inline-block bg-black" data-step="revised_plan"></span>
-                <span class="clickable" data-modal="revisedPlanModal">Revised Plan</span>
-              </div>
-              <div class="flex items-center space-x-2">
-                <span class="status-icon w-4 h-4 inline-block bg-black" data-step="revised_outline"></span>
-                <span class="clickable" data-modal="revisedOutlineModal">Revised Outline</span>
-              </div>
-              <div class="flex items-center space-x-2">
-                <span class="status-icon w-4 h-4 inline-block bg-black" data-step="article"></span>
-                <span>Article</span>
-              </div>
-              <div class="flex items-center space-x-2">
-                <span class="status-icon w-4 h-4 inline-block bg-black" data-step="audio"></span>
-                <span>Audio</span>
-              </div>
+      <div class="ascii-box">
++-----------------+
+|  LONGSLOP SYS   |
+|  Use the form   |
+|  to create tale |
+|                 |
+|  <READY>        |
++-----------------+
+      </div>
+    </div>
+
+    <!-- Center Panel: Final Story (scrollable) -->
+    <div class="overflow-auto p-4 h-screen">
+      <div id="finalArticle" class="pixel-border terminal-panel mb-8">
+        <h2 class="pixel-heading text-xl">Final Story</h2>
+        <div id="articleContent" class="prose max-w-none">
+          <p class="text-white">No story generated yet. Please fill out the form on the left and click "Generate".</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Progress and Waiting Games, sticky -->
+    <div class="sticky top-0 h-screen overflow-auto p-4">
+      <div id="outputSection" class="pixel-border terminal-panel mb-8">
+        <h2 class="pixel-heading text-xl">Generation Progress</h2>
+        <div class="mb-4">
+          <div id="progressSteps" class="flex flex-col space-y-2 text-white">
+            <div class="flex items-center space-x-2">
+              <span class="status-icon w-4 h-4 inline-block bg-black" data-step="plan"></span>
+              <span class="clickable" data-modal="planModal">Plan</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="status-icon w-4 h-4 inline-block bg-black" data-step="outline"></span>
+              <span class="clickable" data-modal="outlineModal">Outline</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="status-icon w-4 h-4 inline-block bg-black" data-step="revised_plan"></span>
+              <span class="clickable" data-modal="revisedPlanModal">Revised Plan</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="status-icon w-4 h-4 inline-block bg-black" data-step="revised_outline"></span>
+              <span class="clickable" data-modal="revisedOutlineModal">Revised Outline</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="status-icon w-4 h-4 inline-block bg-black" data-step="article"></span>
+              <span>Article</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="status-icon w-4 h-4 inline-block bg-black" data-step="audio"></span>
+              <span>Audio</span>
             </div>
           </div>
-          <div class="text-sm mb-4" id="statusMessage" style="color:#cccccc;">Waiting for server response...</div>
-
-          <div id="waitingGame" class="hidden text-white mt-4">
-              <h3 class="text-md font-bold mb-2" style="color:#00ff00;">While you wait...</h3>
-              <p class="mb-2">Try this guessing game! Guess a number between 1 and 100.</p>
-              <div class="mb-2">
-                <input type="number" id="guessInput" class="pixel-input w-24" placeholder="Your guess"/>
-                <button id="guessButton" class="pixel-button ml-2">Guess</button>
-              </div>
-              <div id="guessFeedback" class="text-sm mb-4"></div>
-
-              <!-- Game Tabs -->
-              <div class="game-tabs">
-                <div class="game-tab active" data-game="snake">Sloppy Snake</div>
-                <div class="game-tab" data-game="glitchout">Glitchout</div>
-              </div>
-
-              <!-- Snake Game Container -->
-              <div class="game-container active" id="snakeGameContainer">
-                <p class="game-instructions">Use arrow keys to move. Space to pause. Eat apples, watch out for obstacles and glitches. Power-ups appear occasionally (yellow). More glitch level = more chaos!</p>
-                <canvas id="snakeCanvas" width="600" height="600" style="border:1px solid #00ff00;"></canvas>
-              </div>
-
-              <!-- Glitchout Game Container (Breakout-like) -->
-              <div class="game-container" id="glitchoutGameContainer">
-                <p class="game-instructions">Use left/right arrow keys to move the paddle. Press Space to launch the ball. Break bricks, watch out for glitchy effects!</p>
-                <canvas id="glitchoutCanvas" width="600" height="400" style="border:1px solid #00ff00;"></canvas>
-              </div>
-
-          </div>  
         </div>
+        <div class="text-sm mb-4" id="statusMessage" style="color:#cccccc;">Waiting for generation...</div>
 
-        <div id="finalArticle" class="pixel-border terminal-panel mb-8 hidden">
-          <h2 class="pixel-heading text-xl">Final Story</h2>
-          <div id="articleContent" class="prose max-w-none"></div>
-        </div>
+        <div id="waitingGame" class="text-white mt-4">
+          <h3 class="text-md font-bold mb-2" style="color:#00ff00;">While you wait...</h3>
+          <p class="mb-2">Try this guessing game! Guess a number between 1 and 100.</p>
+          <div class="mb-2">
+            <input type="number" id="guessInput" class="pixel-input w-24" placeholder="Your guess"/>
+            <button id="guessButton" class="pixel-button ml-2">Guess</button>
+          </div>
+          <div id="guessFeedback" class="text-sm mb-4"></div>
 
-        <div id="audioSection" class="pixel-border terminal-panel mb-8 bg-black hidden">
-          <h2 class="pixel-heading text-xl">Audio</h2>
-          <p class="mb-2 text-white">Your story has been converted to audio:</p>
-          <audio id="articleAudio" controls class="mt-4 w-full"></audio>
+          <!-- Game Tabs -->
+          <div class="game-tabs">
+            <div class="game-tab active" data-game="snake">Sloppy Snake</div>
+            <div class="game-tab" data-game="glitchout">Glitchout</div>
+          </div>
+
+          <!-- Snake Game Container -->
+          <div class="game-container active" id="snakeGameContainer">
+            <p class="game-instructions">Use arrow keys to move. Space to pause. Eat apples, watch out for obstacles and glitches. Power-ups appear occasionally (yellow). More glitch level = more chaos!</p>
+            <canvas id="snakeCanvas" width="600" height="600" style="border:1px solid #00ff00;" tabindex="0"></canvas>
+          </div>
+
+          <!-- Glitchout Game Container -->
+          <div class="game-container" id="glitchoutGameContainer">
+            <p class="game-instructions">Use left/right arrow keys to move the paddle. Press Space to launch the ball. Break bricks, watch out for glitchy effects!</p>
+            <canvas id="glitchoutCanvas" width="600" height="400" style="border:1px solid #00ff00;" tabindex="0"></canvas>
+          </div>
         </div>
+      </div>
+
+      <div id="audioSection" class="pixel-border terminal-panel bg-black">
+        <h2 class="pixel-heading text-xl">Audio</h2>
+        <p class="mb-2 text-white">Audio will appear here once generated.</p>
+        <audio id="articleAudio" controls class="mt-4 w-full"></audio>
       </div>
     </div>
   </main>

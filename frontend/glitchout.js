@@ -186,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener("keyup", keyUpHandler, false);
 
     function keyDownHandler(e) {
-        if (['ArrowLeft','ArrowRight',' '].includes(e.key)) {
+        if (document.activeElement === canvas && ['ArrowLeft','ArrowRight',' '].includes(e.key)) {
             e.preventDefault();
         }
         if(e.key === "ArrowRight") {

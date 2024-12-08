@@ -235,7 +235,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let gameLoop = setInterval(updateGame, moveInterval);
 
     document.addEventListener('keydown', (e) => {
-        if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
+        // Only prevent default if the snake canvas is focused
+        if (document.activeElement === canvas && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
             e.preventDefault();
         }
         let key = e.key;

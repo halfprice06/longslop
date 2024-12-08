@@ -534,7 +534,13 @@ YOUR WRITING TASK, REWRITE THE FOLLOWING CONTENT:
 
 {content}
 
-Rewrite the content in the specified style while keeping all information intact."""
+Rewrite the content in the specified style while keeping all information intact.
+
+EXTREMELY IMPORTANT - Do not add to the length of the existing content, just apply the style.
+
+"""
+                    
+
                 else:
                     # Retry attempts focus on removing forbidden words
                     prompt = f"""Rewrite the following content as close to verbatim as possible,
@@ -550,7 +556,7 @@ The rewritten content must:
 
 Make sure to bias each scene to contain a lot of character actions or dialogue. We don't want the story to drag. 
 
-Previous version:
+YOUR WRITING TASK, REWRITE THE FOLLOWING CONTENT WHILE AVOIDING THE FORBIDDEN WORDS:
 
 {styled_content}
 

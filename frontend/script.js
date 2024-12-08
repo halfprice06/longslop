@@ -3,22 +3,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     const form = document.getElementById('generateForm');
     const outputSection = document.getElementById('outputSection');
     const statusMessage = document.getElementById('statusMessage');
-    const rawData = document.getElementById('rawData');
     const finalArticle = document.getElementById('finalArticle');
     const articleContent = document.getElementById('articleContent');
     const audioSection = document.getElementById('audioSection');
     const articleAudio = document.getElementById('articleAudio');
-    const includeAudioParam = document.getElementById('includeAudio').value; 
-    const generateFormSection = document.querySelector('.pixel-border.terminal-panel.mb-8');
-    const progressSection = document.querySelector('#outputSection > .pixel-border.terminal-panel.mb-8');
-    const mainContainer = document.querySelector('main .max-w-3xl');
-    
-    // Add waiting game elements
+
+    // Auto-grow textarea functionality
+    const topicTextarea = document.getElementById('topic');
+    function autoGrow() {
+        topicTextarea.style.height = 'auto';
+        topicTextarea.style.height = (topicTextarea.scrollHeight) + 'px';
+    }
+    topicTextarea.addEventListener('input', autoGrow);
+    // Initial call to set proper height
+    autoGrow();
+
+    // Waiting game elements
     const waitingGame = document.getElementById('waitingGame');
     const guessInput = document.getElementById('guessInput');
     const guessButton = document.getElementById('guessButton');
     const guessFeedback = document.getElementById('guessFeedback');
-
     let targetNumber = null;
 
     function startGuessingGame() {
@@ -39,30 +43,20 @@ document.addEventListener("DOMContentLoaded", async () => {
             guessFeedback.textContent = "Too high! Try again.";
         } else {
             guessFeedback.textContent = "You got it! The number was " + targetNumber + ".";
-            // Start a new game after a brief delay
             setTimeout(startGuessingGame, 2000);
         }
     });
 
-    function showWaitingGame() {
-        waitingGame.classList.remove('hidden');
-        startGuessingGame();
-    }
+    startGuessingGame(); // Start the guessing game immediately.
 
-    function hideWaitingGame() {
-        waitingGame.classList.add('hidden');
-    }
-    
-    // Modal elements
-    const modals = document.querySelectorAll('.modal');
+    // Modals
     const modalContents = {
         plan: document.getElementById('planContent'),
         outline: document.getElementById('outlineContent'),
         revised_plan: document.getElementById('revisedPlanContent'),
         revised_outline: document.getElementById('revisedOutlineContent')
     };
-    
-    // Initialize modal functionality
+
     document.querySelectorAll('.clickable[data-modal]').forEach(trigger => {
         trigger.addEventListener('click', () => {
             const modalId = trigger.getAttribute('data-modal');
@@ -82,16 +76,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             e.target.style.display = 'none';
         }
     });
-    
-    if (includeAudioParam === "false") {
-        audioSection.classList.add('hidden');
-    }
-    
+
     let sseSource = null;
-    let rawDataVisible = false;
     let cumulativeData = [];
-  
-    // Fetch styles from backend and populate styles dropdown
+
+    // Fetch styles
     async function fetchStyles() {
       try {
         const res = await fetch('/api/v1/styles');
@@ -108,29 +97,27 @@ document.addEventListener("DOMContentLoaded", async () => {
         alert("Error fetching styles. Check console for details.");
       }
     }
-  
+
     await fetchStyles();
-  
+
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const topic = document.getElementById('topic').value.trim();
       const style = document.getElementById('style').value;
       const length = document.getElementById('length').value;
-  
+      const includeAudio = document.getElementById('includeAudio').value;
+
       if (!topic) {
         alert("Please enter a topic.");
         return;
       }
-  
-      startGeneration(topic, style, length);
-      showWaitingGame(); // Show the waiting game when generation starts
-    });
-  
-    function startGeneration(topic, style, length) {
-      resetUI();
-      outputSection.classList.remove('hidden');
 
-      const includeAudio = document.getElementById('includeAudio').value; 
+      startGeneration(topic, style, length, includeAudio);
+    });
+
+    function startGeneration(topic, style, length, includeAudio) {
+      resetUI();
+      statusMessage.textContent = "Contacting server...";
 
       const params = new URLSearchParams({
         topic: topic,
@@ -139,27 +126,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         provider: 'anthropic',
         includeAudio: includeAudio
       });
-  
+
       sseSource = new EventSource(`/api/v1/write-article-stream?${params.toString()}`);
-  
+
       sseSource.onmessage = (event) => {
         if (event.data === "" && event.lastEventId === "end") {
           sseSource.close();
           statusMessage.textContent = "Generation complete.";
           return;
         }
-  
+
         try {
           const msg = JSON.parse(event.data);
           cumulativeData.push(msg);
-  
-          // Handle different event types
           handleEvent(msg);
         } catch (err) {
           console.error("Error parsing SSE message:", err);
         }
       };
-  
+
       sseSource.onerror = (error) => {
         console.error("SSE error:", error);
         statusMessage.textContent = "Error occurred. Check console.";
@@ -168,18 +153,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       };
     }
-  
+
     function resetUI() {
-      // Reset progress steps
       document.querySelectorAll('.status-icon').forEach(icon => {
-        icon.classList.remove('bg-green-500', 'bg-red-500');
-        icon.style.backgroundColor = '#000000'; // Reset to black background
+        icon.style.backgroundColor = '#000000';
       });
-      
-      statusMessage.textContent = "Waiting for server response...";
+
+      statusMessage.textContent = "Waiting for generation...";
       cumulativeData = [];
 
-      // Reset modal contents
       Object.values(modalContents).forEach(content => {
           if (content) {
               if (content.classList.contains('markdown-content')) {
@@ -190,20 +172,15 @@ document.addEventListener("DOMContentLoaded", async () => {
           }
       });
 
-      // Reset article and audio sections
-      articleContent.innerHTML = "";
-      finalArticle.classList.add('hidden');
-      audioSection.classList.add('hidden');
+      articleContent.innerHTML = "<p class='text-white'>Generating your story...</p>";
       articleAudio.src = "";
     }
-  
-    // Configure marked.js
+
     marked.setOptions({
         breaks: true,
         gfm: true
     });
 
-    // Helper function to safely render content as markdown or JSON
     function renderContent(content, isMarkdown = false) {
         if (typeof content === 'string' && isMarkdown) {
             return marked.parse(content);
@@ -211,7 +188,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         return JSON.stringify(content, null, 2);
     }
 
-    // Helper function to format outline data in a structured way
     function formatOutline(outline) {
         if (typeof outline === 'string') {
             try {
@@ -222,10 +198,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         let html = '<div class="outline-content">';
-        
-        // Handle different outline structures
         if (Array.isArray(outline)) {
-            // Simple array structure
             html += '<ul class="outline-list">';
             outline.forEach(item => {
                 if (typeof item === 'object') {
@@ -240,7 +213,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
             html += '</ul>';
         } else if (typeof outline === 'object') {
-            // Object structure with sections
             Object.entries(outline).forEach(([key, value]) => {
                 html += `<div class="outline-section">
                     <h3 class="outline-section-title">${key}</h3>
@@ -248,7 +220,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 </div>`;
             });
         }
-        
         html += '</div>';
         return html;
     }
@@ -286,8 +257,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         case 'complete_content':
           updateStep('article', true);
           statusMessage.textContent = "Content generation complete.";
-          
-          // Handle audio if present
+
           if (msg.content.audio_path) {
             updateStep('audio', true);
             displayAudio(msg.content.audio_path);
@@ -296,78 +266,50 @@ document.addEventListener("DOMContentLoaded", async () => {
             statusMessage.textContent = "Error generating audio: " + msg.content.audio_error;
           }
 
-          // Display the article
           displayArticle(msg.content.article);
-          
-          // Hide the waiting game when generation is complete
-          hideWaitingGame();
-          
-          // Reorder sections
-          mainContainer.innerHTML = ''; // Clear the container
-          
-          // Add sections in the desired order
-          if (audioSection && !audioSection.classList.contains('hidden')) {
-            mainContainer.appendChild(audioSection);
-          }
-          mainContainer.appendChild(finalArticle);
-          mainContainer.appendChild(generateFormSection);
-          mainContainer.appendChild(progressSection);
-          
           break;
         case 'error':
           statusMessage.textContent = "An error occurred: " + msg.content;
           console.error("Error from server:", msg.content);
-          hideWaitingGame(); // Hide the waiting game on error
           break;
         default:
           console.log("Unknown event type:", msg);
       }
     }
-  
+
     function updateStep(step, success) {
       const icon = document.querySelector(`.status-icon[data-step="${step}"]`);
       if (icon) {
-        icon.style.backgroundColor = success ? '#00ff00' : '#ff0000'; // Green for success, red for failure
+        icon.style.backgroundColor = success ? '#00ff00' : '#ff0000';
       }
     }
-  
+
     function displayArticle(content) {
-        finalArticle.classList.remove('hidden');
-        
         try {
-            // If content is a string and contains markdown-style images or paragraphs
             if (typeof content === 'string') {
-                // Split content into paragraphs and wrap each in <p> tags
                 const htmlContent = content
                     .split('\n\n')
                     .map(par => {
-                        // If it's an image markdown, keep it as is
                         if (par.trim().startsWith('![')) {
                             return par;
                         }
-                        // Otherwise wrap in <p> tags
                         return `<p>${par}</p>`;
                     })
                     .join('\n');
-                
-                // Convert markdown image syntax to HTML img tags
+
                 const finalHtml = htmlContent.replace(
-                    /!\[([^\]]*)\]\(([^)]+)\)/g, 
+                    /!\[([^\]]*)\]\(([^)]+)\)/g,
                     '<img src="$2" alt="$1" class="w-full max-w-2xl mx-auto my-4 rounded-lg shadow-lg"/>'
                 );
-                
+
                 articleContent.innerHTML = finalHtml;
                 return;
             }
 
-            // If we get here, try to handle as JSON
             const articleData = typeof content === 'string' ? JSON.parse(content) : content;
-            
-            // Function to process scene content
+
             const processScene = (scene) => {
                 let html = '';
-                
-                // Add the scene description/text
                 if (scene.text) {
                     const sceneText = JSON.parse(scene.text);
                     html += `<div class="scene">`;
@@ -378,35 +320,28 @@ document.addEventListener("DOMContentLoaded", async () => {
                     });
                     html += `</div>`;
                 }
-                
-                // Add the scene image if present
+
                 if (scene.image_url) {
                     html += `<div class="scene-image">
                         <img src="${scene.image_url}" alt="Scene Illustration" class="w-full max-w-2xl mx-auto my-4 rounded-lg shadow-lg"/>
                     </div>`;
                 }
-                
                 return html;
             };
 
             let htmlContent = '';
 
-            // Process content based on article length type
             if (articleData.content.intro_paragraphs) {
-                // Medium or Long article
-                // Process intro paragraphs
                 articleData.content.intro_paragraphs.forEach(scene => {
                     htmlContent += processScene(scene);
                 });
 
-                // Process main headings
                 articleData.content.main_headings.forEach(heading => {
                     htmlContent += `<h2 class="text-xl font-bold mt-8 mb-4">${heading.title}</h2>`;
                     heading.scenes.forEach(scene => {
                         htmlContent += processScene(scene);
                     });
 
-                    // Process sub-headings if they exist
                     if (heading.sub_headings) {
                         heading.sub_headings.forEach(subHeading => {
                             htmlContent += `<h3 class="text-lg font-semibold mt-6 mb-3">${subHeading.title}</h3>`;
@@ -417,14 +352,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                     }
                 });
 
-                // Process conclusion paragraphs
                 if (articleData.content.conclusion_paragraphs) {
                     articleData.content.conclusion_paragraphs.forEach(scene => {
                         htmlContent += processScene(scene);
                     });
                 }
             } else {
-                // Short article
                 articleData.content.scenes.forEach(scene => {
                     htmlContent += processScene(scene);
                 });
@@ -433,8 +366,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             articleContent.innerHTML = htmlContent;
         } catch (error) {
             console.error('Error processing article content:', error);
-            // If all else fails, display as plain text
-            const escapedContent = content
+            const escapedContent = (content + '')
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;");
             const simpleHtmlContent = escapedContent
@@ -444,10 +376,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             articleContent.innerHTML = simpleHtmlContent;
         }
     }
-  
+
     function displayAudio(audioPath) {
-      audioSection.classList.remove('hidden');
-      // audioPath is relative to frontend/output, so prepend /frontend/ if needed
       const fullPath = audioPath.startsWith('output/') ? `/frontend/${audioPath}` : audioPath;
       articleAudio.src = fullPath;
     }
@@ -458,18 +388,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
-        tabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
 
-        const game = tab.getAttribute('data-game');
-        if (game === 'snake') {
-            snakeContainer.classList.add('active');
-            glitchoutContainer.classList.remove('active');
-        } else {
-            glitchoutContainer.classList.add('active');
-            snakeContainer.classList.remove('active');
-        }
+            const game = tab.getAttribute('data-game');
+            if (game === 'snake') {
+                snakeContainer.classList.add('active');
+                glitchoutContainer.classList.remove('active');
+            } else {
+                glitchoutContainer.classList.add('active');
+                snakeContainer.classList.remove('active');
+            }
         });
     });
-  });
-
+});
