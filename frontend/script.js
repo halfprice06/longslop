@@ -10,6 +10,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const audioSection = document.getElementById('audioSection');
     const articleAudio = document.getElementById('articleAudio');
     const includeAudioParam = document.getElementById('includeAudio').value; 
+    const generateFormSection = document.querySelector('.pixel-border.terminal-panel.mb-8');
+    const progressSection = document.querySelector('#outputSection > .pixel-border.terminal-panel.mb-8');
+    const mainContainer = document.querySelector('main .max-w-3xl');
     
     if (includeAudioParam === "false") {
         audioSection.classList.add('hidden');
@@ -142,9 +145,6 @@ document.addEventListener("DOMContentLoaded", async () => {
           updateStep('article', true);
           statusMessage.textContent = "Content generation complete.";
           
-          // Display the article
-          displayArticle(msg.content.article);
-          
           // Handle audio if present
           if (msg.content.audio_path) {
             updateStep('audio', true);
@@ -153,6 +153,21 @@ document.addEventListener("DOMContentLoaded", async () => {
             updateStep('audio', false);
             statusMessage.textContent = "Error generating audio: " + msg.content.audio_error;
           }
+
+          // Display the article
+          displayArticle(msg.content.article);
+          
+          // Reorder sections
+          mainContainer.innerHTML = ''; // Clear the container
+          
+          // Add sections in the desired order
+          if (audioSection && !audioSection.classList.contains('hidden')) {
+            mainContainer.appendChild(audioSection);
+          }
+          mainContainer.appendChild(finalArticle);
+          mainContainer.appendChild(generateFormSection);
+          mainContainer.appendChild(progressSection);
+          
           break;
         case 'error':
           statusMessage.textContent = "An error occurred: " + msg.content;
