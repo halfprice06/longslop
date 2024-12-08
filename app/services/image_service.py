@@ -7,6 +7,7 @@ import logging
 import base64
 from app.schemas import SceneScript
 from dotenv import load_dotenv
+from anthropic import Anthropic
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -19,9 +20,9 @@ class ImageService:
         if not RETRODIFFUSION_API_KEY:
             raise ValueError("RETRODIFFUSION_API_KEY is not set in .env")
 
-    def generate_image_prompt(self, scene_script: SceneScript) -> str:
+    def generate_image_prompt(self, scene_script: SceneScript, provider: str = "anthropic") -> str:
         """
-        Uses OpenAI to generate a descriptive image prompt for Retro-Diffusion
+        Uses OpenAI or Anthropic to generate a descriptive image prompt for Retro-Diffusion
         based on the scene script content.
         """
         # Combine all scene text lines into a descriptive passage
@@ -44,11 +45,24 @@ class ImageService:
         Return only the prompt text, nothing else.
         """
 
-        completion = openai.chat.completions.create(
-            model="gpt-4-1106-preview",
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return completion.choices[0].message.content.strip()
+        try:
+            if provider == "anthropic":
+                anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+                completion = anthropic_client.messages.create(
+                    model="claude-3-5-sonnet-latest",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1000
+                )
+                return completion.content[0].text.strip()
+            else:
+                completion = openai.chat.completions.create(
+                    model="gpt-4-1106-preview",
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return completion.choices[0].message.content.strip()
+        except Exception as e:
+            logger.error(f"Error generating image prompt: {str(e)}")
+            raise
 
     def create_image(self, image_prompt: str) -> str:
         """

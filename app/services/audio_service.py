@@ -1,5 +1,5 @@
 import base64
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Literal
 import os
 import json
 import uuid
@@ -11,6 +11,7 @@ import logging
 
 import dotenv
 from openai import OpenAI
+from anthropic import Anthropic
 import instructor
 from elevenlabs import ElevenLabs, VoiceSettings
 
@@ -28,24 +29,42 @@ dotenv.load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+# Add provider type
+ProviderType = Literal["openai", "anthropic"]
+
 def normalize_speaker_name(speaker: str) -> str:
     """Normalize speaker names to ensure consistency."""
-    # Convert to title case first
-    normalized = speaker.strip().title()
-    
-    # Special case for narrator - always capitalize
-    if normalized.lower() == "narrator":
+    # First handle special case for narrator
+    if speaker.strip().lower() == "narrator":
         return "Narrator"
-        
-    return normalized
+    
+    # Split on apostrophe to handle possessives
+    parts = speaker.strip().split("'")
+    
+    # Normalize each part (before and after apostrophe)
+    normalized_parts = []
+    for part in parts:
+        # Title case the part, but lowercase 's' if it's a possessive
+        if part.lower().startswith('s') and len(normalized_parts) > 0:
+            normalized_parts.append('s')
+        else:
+            normalized_parts.append(part.title())
+    
+    # Rejoin with apostrophe
+    return "'".join(normalized_parts)
 
 class AudioService:
-    def __init__(self):
-
-        # Initialize instructor client
-        self.instructor_client = instructor.from_openai(OpenAI(api_key=os.getenv("OPENAI_API_KEY")))
-
+    def __init__(self, provider: ProviderType = "anthropic"):
         print("Initializing AudioService...")
+        
+        # Initialize LLM clients
+        self.provider = provider
+        if provider == "openai":
+            self.instructor_client = instructor.from_openai(OpenAI(api_key=os.getenv("OPENAI_API_KEY")))
+        else:  # anthropic
+            self.instructor_client = instructor.from_anthropic(Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY")))
+
+        # Initialize ElevenLabs client
         self.voice_mapping: Dict[str, str] = {}  # Maps speakers to voice IDs
         self.client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
 
@@ -103,9 +122,10 @@ class AudioService:
         Returns:
             dict: { "CharacterName": "Personality Description", ... }
         """
+        # Get the set of all speakers that need personalities
+        all_speakers = self.extract_unique_speakers(script)
 
         # Combine the entire script into a textual format
-        # We'll just feed all lines to the prompt
         scene_text_lines = []
         for paragraph in script.paragraphs:
             for line in paragraph.lines:
@@ -116,33 +136,52 @@ class AudioService:
 
         # Define the prompt
         prompt = f"""
-You are an assistant who will analyze a scene script and extract a brief personality description of each character.
+You are an expert story analyst who will analyze a scene script and extract detailed personality descriptions for each character, including the Narrator.
+
+Here is the complete list of characters that need personality descriptions:
+{sorted(list(all_speakers))}
 
 Script:
 {full_text}
 
 Task:
-Identify all distinct characters (excluding "Narrator" if present) and provide a short personality description for each. The description should capture their essence based on how they speak or act in the scene.
+For each character (including the Narrator), provide a detailed personality description based on:
+- Their direct speech (how they talk, word choice, tone)
+- Actions described about them
+- How they interact with others
+- For the Narrator, analyze their narrative style and perspective
+
+The Narrator's personality is especially important as it sets the tone for the story.
 
 Return the result as JSON following this schema:
 
 {CharactersPersonalities.schema_json(indent=2)}
 
+Ensure you provide a personality description for EVERY character listed above. Do not skip any characters.
 Do not include any extra commentary, only return the JSON result.
         """
 
-        response = self.instructor_client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="gpt-4o",
-            response_model=CharactersPersonalities
-        )
+        if self.provider == "anthropic":
+            response = self.instructor_client.messages.create(
+                model="claude-3-5-sonnet-latest",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=8000,
+                response_model=CharactersPersonalities
+            )
+        else:  # openai
+            response = self.instructor_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="gpt-4o",
+                response_model=CharactersPersonalities
+            )
 
-        # response is now a CharactersPersonalities object
+        # Convert response to dictionary
         personalities = {cp.character: cp.personality for cp in response.characters}
 
-        # Always include the Narrator if not assigned
-        if "Narrator" not in personalities:
-            personalities["Narrator"] = "A neutral, omniscient observer who narrates events calmly."
+        # Verify all speakers got personalities
+        missing_speakers = all_speakers - set(personalities.keys())
+        if missing_speakers:
+            raise ValueError(f"LLM failed to provide personalities for these speakers: {missing_speakers}")
 
         return personalities
 
@@ -150,6 +189,11 @@ Do not include any extra commentary, only return the JSON result.
         """
         Use the LLM to match each character to the best-fitting voice from the available voices list.
         """
+        # Ensure all speakers have personality descriptions
+        for speaker in speakers:
+            if speaker not in character_personalities:
+                character_personalities[speaker] = f"A character named {speaker} in the story"
+
         voices_list = [v.model_dump() for v in self.available_voices]
 
         prompt = f"""
@@ -173,14 +217,39 @@ Do not include any extra commentary, only return the JSON result.
         """
 
         # Call instructor to parse the response as VoiceAssignmentResult
-        assignments = self.instructor_client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="gpt-4o",
-            response_model=VoiceAssignmentResult
-        )
+        if self.provider == "anthropic":
+            assignments = self.instructor_client.messages.create(
+                model="claude-3-5-sonnet-latest",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=8000,
+                response_model=VoiceAssignmentResult
+            )
+        else:  # openai
+            assignments = self.instructor_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="gpt-4o",
+                response_model=VoiceAssignmentResult
+            )
 
-        voice_mapping = {a.character: a.chosen_voice_id for a in assignments.assignments}
+        # Convert assignments to voice mapping dictionary
+        voice_mapping = {
+            assignment.character: assignment.chosen_voice_id 
+            for assignment in assignments.assignments
+        }
+        
         return voice_mapping
+
+    def validate_voice_assignments(self, voice_mapping: Dict[str, str], speakers: Set[str]) -> None:
+        """Validate that all speakers have voice assignments and no extra characters have assignments."""
+        # Check that all speakers have voice assignments
+        missing_speakers = speakers - set(voice_mapping.keys())
+        if missing_speakers:
+            raise ValueError(f"Missing voice assignments for speakers: {missing_speakers}")
+        
+        # Check that there are no extra characters with voice assignments
+        extra_characters = set(voice_mapping.keys()) - speakers
+        if extra_characters:
+            raise ValueError(f"Found voice assignments for non-existent speakers: {extra_characters}")
 
     def assign_voices_to_speakers(self, speakers: Set[str], script: SceneScript) -> Dict[str, str]:
         """
@@ -200,6 +269,9 @@ Do not include any extra commentary, only return the JSON result.
             # Assign narrator a default voice directly or let LLM do it as well
             # Here we let LLM handle narrator too, or we can do a special case
             voice_mapping = self.assign_voices_via_llm(speakers, character_personalities)
+
+        # Validate voice assignments match speakers exactly
+        self.validate_voice_assignments(voice_mapping, speakers)
 
         self.voice_mapping = voice_mapping
         return self.voice_mapping
@@ -278,13 +350,9 @@ Do not include any extra commentary, only return the JSON result.
         """Main function to process entire script and generate full audio. Returns the filename."""
         print("Processing script...")
         
-        # Normalize all speaker names in the script
-        for paragraph in script.paragraphs:
-            for line in paragraph.lines:
-                line.speaker = normalize_speaker_name(line.speaker)
-        
         # 1. Get unique speakers (now using normalized names)
         speakers = self.extract_unique_speakers(script)
+        print(f"Found {len(speakers)} unique speakers: {speakers}")
         
         # 2. Assign voices to speakers using personalities extracted from the script
         voice_mapping = self.assign_voices_to_speakers(speakers, script)

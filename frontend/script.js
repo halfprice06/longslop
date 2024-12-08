@@ -13,6 +13,46 @@ document.addEventListener("DOMContentLoaded", async () => {
     const progressSection = document.querySelector('#outputSection > .pixel-border.terminal-panel.mb-8');
     const mainContainer = document.querySelector('main .max-w-3xl');
     
+    // Add waiting game elements
+    const waitingGame = document.getElementById('waitingGame');
+    const guessInput = document.getElementById('guessInput');
+    const guessButton = document.getElementById('guessButton');
+    const guessFeedback = document.getElementById('guessFeedback');
+
+    let targetNumber = null;
+
+    function startGuessingGame() {
+        targetNumber = Math.floor(Math.random() * 100) + 1;
+        guessFeedback.textContent = "Enter a guess above!";
+    }
+
+    guessButton.addEventListener('click', () => {
+        const guess = parseInt(guessInput.value, 10);
+        if (isNaN(guess)) {
+            guessFeedback.textContent = "Please enter a valid number.";
+            return;
+        }
+
+        if (guess < targetNumber) {
+            guessFeedback.textContent = "Too low! Try again.";
+        } else if (guess > targetNumber) {
+            guessFeedback.textContent = "Too high! Try again.";
+        } else {
+            guessFeedback.textContent = "You got it! The number was " + targetNumber + ".";
+            // Start a new game after a brief delay
+            setTimeout(startGuessingGame, 2000);
+        }
+    });
+
+    function showWaitingGame() {
+        waitingGame.classList.remove('hidden');
+        startGuessingGame();
+    }
+
+    function hideWaitingGame() {
+        waitingGame.classList.add('hidden');
+    }
+    
     // Modal elements
     const modals = document.querySelectorAll('.modal');
     const modalContents = {
@@ -83,6 +123,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
   
       startGeneration(topic, style, length);
+      showWaitingGame(); // Show the waiting game when generation starts
     });
   
     function startGeneration(topic, style, length) {
@@ -258,6 +299,9 @@ document.addEventListener("DOMContentLoaded", async () => {
           // Display the article
           displayArticle(msg.content.article);
           
+          // Hide the waiting game when generation is complete
+          hideWaitingGame();
+          
           // Reorder sections
           mainContainer.innerHTML = ''; // Clear the container
           
@@ -273,6 +317,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         case 'error':
           statusMessage.textContent = "An error occurred: " + msg.content;
           console.error("Error from server:", msg.content);
+          hideWaitingGame(); // Hide the waiting game on error
           break;
         default:
           console.log("Unknown event type:", msg);

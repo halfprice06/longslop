@@ -24,9 +24,7 @@ from app.schemas import (
     LongArticleStructure,
     MediumArticleStructure,
     ShortArticleStructure,
-    Paragraph,
     SceneScript,
-    SceneLine, 
     Scene
 )
 
@@ -532,7 +530,7 @@ The rewritten content must:
 - Follow the description: {scene_description}
 - Must include: {must_include}
 
-Original content:
+YOUR WRITING TASK, REWRITE THE FOLLOWING CONTENT:
 
 {content}
 
