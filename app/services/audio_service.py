@@ -81,7 +81,12 @@ class AudioService:
                 model_id="eleven_multilingual_v2",
                 text=text,
                 output_format="mp3_44100_128",
-                settings=VoiceSettings(stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True)
+                voice_settings={
+                    "stability": 0.5,
+                    "similarity_boost": 0.75,
+                    "style": 0.0,
+                    "use_speaker_boost": True
+                }
             )
             
             # Convert generator to bytes by reading all chunks

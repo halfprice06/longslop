@@ -87,25 +87,30 @@ async def write_article_stream(
                 written_article,
                 include_headers=includeHeaders
             )
-            article_data = json.dumps({"type": "article", "content": formatted_content})
-            yield f"data: {article_data}\n\n"
+
+            # Prepare the complete response object
+            complete_response = {
+                "type": "complete_content",
+                "content": {
+                    "article": formatted_content,
+                    "audio_path": None
+                }
+            }
             
-            # Generate audio after article is complete
+            # Generate audio if requested
             if includeAudio:
                 try:
                     audio_service = AudioService()
                     filename = audio_service.process_article(scene_script)
-                    
-                    # Send audio file path to client
-                    audio_data = json.dumps({"type": "audio", "content": f"output/{filename}"})
-                    yield f"data: {audio_data}\n\n"
+                    complete_response["content"]["audio_path"] = f"output/{filename}"
                 except Exception as audio_error:
                     logger.error(f"Error generating audio: {str(audio_error)}")
-                    error_data = json.dumps({"type": "audio_error", "content": str(audio_error)})
-                    yield f"data: {error_data}\n\n"
-                
-                # Indicate the end of the stream
-                yield 'event: end\ndata: \n\n'
+                    complete_response["content"]["audio_error"] = str(audio_error)
+
+            # Send the complete response
+            response_data = json.dumps(complete_response)
+            yield f"data: {response_data}\n\n"
+            yield 'event: end\ndata: \n\n'
             
         except Exception as e:
             logger.error(f"Error in event_generator: {str(e)}", exc_info=True)

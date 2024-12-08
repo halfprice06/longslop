@@ -39,3 +39,7 @@ Thumbs.db
 
 articles.db
 frontend/output/*
+
+static/images/*
+
+output/*

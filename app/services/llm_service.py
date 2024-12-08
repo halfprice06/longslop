@@ -13,6 +13,7 @@ import openai
 import instructor
 
 # Local imports
+from app.services.image_service import ImageService
 from app.services.audio_service import AudioService
 from app.constants.forbidden_words import FORBIDDEN_WORDS
 from app.constants.writing_styles import AVAILABLE_STYLES
@@ -69,6 +70,9 @@ anthropic_instructor_client = instructor.from_anthropic(Anthropic(
 ProviderType = Literal["openai", "anthropic"]
 
 audio_service = AudioService()
+
+image_service = ImageService()
+
 
 def check_forbidden_words(text: str) -> Tuple[bool, List[str]]:
     """
@@ -553,14 +557,15 @@ Do not return any content other than the rewritten content. Do not include intro
                         messages=[
                             {"role": "user", "content": prompt}
                         ],
-                        max_tokens=8000
+                        max_tokens=50
                     )
                     styled_content = completion.content[0].text.strip()
 
                 else:
                     completion = openai.chat.completions.create(
                         model="gpt-4o-2024-11-20",
-                        messages=[{"role": "user", "content": prompt}]
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=50
                     )
                     styled_content = completion.choices[0].message.content.strip()
 
@@ -801,13 +806,14 @@ Do not return any text other than the next section of the article or short story
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=8000
+                max_tokens=50
             )
             generated_content = completion.content[0].text.strip()
         else:
             completion = openai.chat.completions.create(
                 model="gpt-4o-2024-11-20",
                 messages=[{"role": "user", "content": prompt}],
+                max_tokens=50
             )
             generated_content = completion.choices[0].message.content.strip()
 
@@ -848,6 +854,7 @@ def write_full_article(
     include_headers: bool = True
 ) -> Tuple[ArticleStructure, SceneScript]:
     """Write the entire article or short story, generating each paragraph individually."""
+    
     try:
         # Create a deep copy of the structured plan to preserve the original
         written_article = ArticleStructure(
@@ -862,7 +869,6 @@ def write_full_article(
         scene_title = topic  # Use topic as the overall title
 
         if isinstance(written_article.content, ShortArticleStructure):
-            # Generate each scene individually
             for idx, scene in enumerate(written_article.content.scenes):
                 scene_text = write_paragraph(
                     topic, original_plan, structured_plan, written_article,
@@ -870,95 +876,135 @@ def write_full_article(
                 )
                 scene_script = extract_scene_script(scene_text, provider)
                 written_article.content.scenes[idx].text = scene_script.model_dump_json()
+
+                # Generate image for this scene
+                image_url = image_service.generate_scene_image(scene_script)  # NEW
+                written_article.content.scenes[idx].image_url = image_url       # NEW
+
                 all_paragraphs.extend(scene_script.paragraphs)
 
-        else:
-            # Handle medium and long articles
-            if isinstance(written_article.content, MediumArticleStructure):
-                # Write introduction paragraphs
-                for idx, scene in enumerate(written_article.content.intro_paragraphs):
+        elif isinstance(written_article.content, MediumArticleStructure):
+            # Introduction
+            for idx, scene in enumerate(written_article.content.intro_paragraphs):
+                scene_text = write_paragraph(
+                    topic, original_plan, structured_plan, written_article,
+                    scene, style=style, provider=provider
+                )
+                scene_script = extract_scene_script(scene_text, provider)
+                written_article.content.intro_paragraphs[idx].text = scene_script.model_dump_json()
+
+                # Generate image for this scene
+                image_url = image_service.generate_scene_image(scene_script)  # NEW
+                written_article.content.intro_paragraphs[idx].image_url = image_url # NEW
+
+                all_paragraphs.extend(scene_script.paragraphs)
+
+            # Main headings
+            for heading in written_article.content.main_headings:
+                for idx, scene in enumerate(heading.scenes):
                     scene_text = write_paragraph(
                         topic, original_plan, structured_plan, written_article,
                         scene, style=style, provider=provider
                     )
                     scene_script = extract_scene_script(scene_text, provider)
-                    written_article.content.intro_paragraphs[idx].text = scene_script.model_dump_json()
+                    heading.scenes[idx].text = scene_script.model_dump_json()
+
+                    # Generate image for this scene
+                    image_url = image_service.generate_scene_image(scene_script)  # NEW
+                    heading.scenes[idx].image_url = image_url # NEW
+
                     all_paragraphs.extend(scene_script.paragraphs)
 
-                # Write main headings and their scenes
-                for heading in written_article.content.main_headings:
-                    for idx, scene in enumerate(heading.scenes):
-                        scene_text = write_paragraph(
-                            topic, original_plan, structured_plan, written_article,
-                            scene, style=style, provider=provider
-                        )
-                        scene_script = extract_scene_script(scene_text, provider)
-                        heading.scenes[idx].text = scene_script.model_dump_json()
-                        all_paragraphs.extend(scene_script.paragraphs)
+            # Conclusion
+            for idx, scene in enumerate(written_article.content.conclusion_paragraphs):
+                scene_text = write_paragraph(
+                    topic, original_plan, structured_plan, written_article,
+                    scene, style=style, provider=provider
+                )
+                scene_script = extract_scene_script(scene_text, provider)
+                written_article.content.conclusion_paragraphs[idx].text = scene_script.model_dump_json()
 
-                # Write conclusion paragraphs
-                for idx, scene in enumerate(written_article.content.conclusion_paragraphs):
+                # Generate image for this scene
+                image_url = image_service.generate_scene_image(scene_script)  # NEW
+                written_article.content.conclusion_paragraphs[idx].image_url = image_url # NEW
+
+                all_paragraphs.extend(scene_script.paragraphs)
+
+        elif isinstance(written_article.content, LongArticleStructure):
+            # Introduction
+            for idx, scene in enumerate(written_article.content.intro_paragraphs):
+                scene_text = write_paragraph(
+                    topic, original_plan, structured_plan, written_article, scene, style=style, provider=provider
+                )
+                scene_script = extract_scene_script(scene_text, provider)
+                written_article.content.intro_paragraphs[idx].text = scene_script.model_dump_json()
+
+                # Generate image for this scene
+                image_url = image_service.generate_scene_image(scene_script)  # NEW
+                written_article.content.intro_paragraphs[idx].image_url = image_url # NEW
+
+                all_paragraphs.extend(scene_script.paragraphs)
+
+            # Main headings and nested content
+            for heading in written_article.content.main_headings:
+                for idx, scene in enumerate(heading.scenes):
                     scene_text = write_paragraph(
                         topic, original_plan, structured_plan, written_article,
                         scene, style=style, provider=provider
                     )
                     scene_script = extract_scene_script(scene_text, provider)
-                    written_article.content.conclusion_paragraphs[idx].text = scene_script.model_dump_json()
+                    heading.scenes[idx].text = scene_script.model_dump_json()
+
+                    # Generate image for this scene
+                    image_url = image_service.generate_scene_image(scene_script)  # NEW
+                    heading.scenes[idx].image_url = image_url # NEW
+
                     all_paragraphs.extend(scene_script.paragraphs)
 
-            elif isinstance(written_article.content, LongArticleStructure):
-                # Write introduction paragraphs
-                for idx, scene in enumerate(written_article.content.intro_paragraphs):
-                    scene_text = write_paragraph(
-                        topic, original_plan, structured_plan, written_article, scene, style=style, provider=provider
-                    )
-                    scene_script = extract_scene_script(scene_text, provider)
-                    written_article.content.intro_paragraphs[idx].text = scene_script.model_dump_json()
-                    all_paragraphs.extend(scene_script.paragraphs)
-
-                # Write main headings and their nested content
-                for heading in written_article.content.main_headings:
-                    # Write main heading scenes
-                    for idx, scene in enumerate(heading.scenes):
+                for sub in heading.sub_headings:
+                    for idx, scene in enumerate(sub.scenes):
                         scene_text = write_paragraph(
                             topic, original_plan, structured_plan, written_article,
                             scene, style=style, provider=provider
                         )
                         scene_script = extract_scene_script(scene_text, provider)
-                        heading.scenes[idx].text = scene_script.model_dump_json()
+                        sub.scenes[idx].text = scene_script.model_dump_json()
+
+                        # Generate image for this scene
+                        image_url = image_service.generate_scene_image(scene_script)  # NEW
+                        sub.scenes[idx].image_url = image_url # NEW
+
                         all_paragraphs.extend(scene_script.paragraphs)
 
-                    # Write subheadings
-                    for subheading in heading.sub_headings:
-                        for idx, scene in enumerate(subheading.scenes):
+                    for subsub in sub.sub_headings:
+                        for idx, scene in enumerate(subsub.scenes):
                             scene_text = write_paragraph(
                                 topic, original_plan, structured_plan, written_article,
                                 scene, style=style, provider=provider
                             )
                             scene_script = extract_scene_script(scene_text, provider)
-                            subheading.scenes[idx].text = scene_script.model_dump_json()
+                            subsub.scenes[idx].text = scene_script.model_dump_json()
+
+                            # Generate image for this scene
+                            image_url = image_service.generate_scene_image(scene_script)  # NEW
+                            subsub.scenes[idx].image_url = image_url # NEW
+
                             all_paragraphs.extend(scene_script.paragraphs)
 
-                        # Write sub-subheadings
-                        for subsubheading in subheading.sub_headings:
-                            for idx, scene in enumerate(subsubheading.scenes):
-                                scene_text = write_paragraph(
-                                    topic, original_plan, structured_plan, written_article,
-                                    scene, style=style, provider=provider
-                                )
-                                scene_script = extract_scene_script(scene_text, provider)
-                                subsubheading.scenes[idx].text = scene_script.model_dump_json()
-                                all_paragraphs.extend(scene_script.paragraphs)
+            # Conclusion
+            for idx, scene in enumerate(written_article.content.conclusion_paragraphs):
+                scene_text = write_paragraph(
+                    topic, original_plan, structured_plan, written_article,
+                    scene, style=style, provider=provider
+                )
+                scene_script = extract_scene_script(scene_text, provider)
+                written_article.content.conclusion_paragraphs[idx].text = scene_script.model_dump_json()
 
-                # Write conclusion paragraphs
-                for idx, scene in enumerate(written_article.content.conclusion_paragraphs):
-                    scene_text = write_paragraph(
-                        topic, original_plan, structured_plan, written_article,
-                        scene, style=style, provider=provider
-                    )
-                    scene_script = extract_scene_script(scene_text, provider)
-                    written_article.content.conclusion_paragraphs[idx].text = scene_script.model_dump_json()
-                    all_paragraphs.extend(scene_script.paragraphs)
+                # Generate image for this scene
+                image_url = image_service.generate_scene_image(scene_script)  # NEW
+                written_article.content.conclusion_paragraphs[idx].image_url = image_url # NEW
+
+                all_paragraphs.extend(scene_script.paragraphs)
 
         # Create combined scene script with all paragraphs
         combined_script = SceneScript(
@@ -1011,82 +1057,70 @@ def format_written_content(
     ],
     include_headers: bool = True
 ) -> str:
+
     content = []
+    article_content = written_article.content
 
-    # Check if written_article is an ArticleStructure
-    if isinstance(written_article, ArticleStructure):
-        article_content = written_article.content
-    else:
-        article_content = written_article
+    # For each scene, if scene.image_url is present, insert it before the text.
+    def format_scene(scene) -> str:
+        result_lines = []
+        if scene.image_url:
+            # Insert image as markdown
+            result_lines.append(f"![Scene Illustration]({scene.image_url})")
+        if scene.text:
+            result_lines.append(format_scene_script(scene.text))
+        return "\n\n".join(result_lines)
 
-    # Add title if headers are included
-    if include_headers and hasattr(article_content, 'title'):
-        content.append(f"# {article_content.title}\n")
-
-    # Handle different article structures
+    # ShortArticleStructure
     if isinstance(article_content, ShortArticleStructure):
+        if include_headers and hasattr(article_content, 'title'):
+            content.append(f"# {article_content.title}\n")
         for scene in article_content.scenes:
-            if scene.text:
-                content.append(format_scene_script(scene.text))
-                
+            content.append(format_scene(scene))
+
+    # MediumArticleStructure
     elif isinstance(article_content, MediumArticleStructure):
-        # Introduction
+        if include_headers and hasattr(article_content, 'title'):
+            content.append(f"# {article_content.title}\n")
         for scene in article_content.intro_paragraphs:
-            if scene.text:
-                content.append(format_scene_script(scene.text))
+            content.append(format_scene(scene))
         content.append("")
-
-        # Main headings
         for heading in article_content.main_headings:
             if include_headers:
                 content.append(f"## {heading.title}")
             for scene in heading.scenes:
-                if scene.text:
-                    content.append(format_scene_script(scene.text))
+                content.append(format_scene(scene))
             content.append("")
-
-        # Conclusion
         for scene in article_content.conclusion_paragraphs:
-            if scene.text:
-                content.append(format_scene_script(scene.text))
-                
-    elif isinstance(article_content, LongArticleStructure):
-        # Introduction
-        for scene in article_content.intro_paragraphs:
-            if scene.text:
-                content.append(format_scene_script(scene.text))
-        content.append("")
+            content.append(format_scene(scene))
 
-        # Main headings and nested content
+    # LongArticleStructure
+    elif isinstance(article_content, LongArticleStructure):
+        if include_headers and hasattr(article_content, 'title'):
+            content.append(f"# {article_content.title}\n")
+        for scene in article_content.intro_paragraphs:
+            content.append(format_scene(scene))
+        content.append("")
         for heading in article_content.main_headings:
             if include_headers:
                 content.append(f"## {heading.title}")
             for scene in heading.scenes:
-                if scene.text:
-                    content.append(format_scene_script(scene.text))
+                content.append(format_scene(scene))
             content.append("")
-
             for sub in heading.sub_headings:
                 if include_headers:
                     content.append(f"### {sub.title}")
                 for scene in sub.scenes:
-                    if scene.text:
-                        content.append(format_scene_script(scene.text))
+                    content.append(format_scene(scene))
                 content.append("")
-
                 for subsub in sub.sub_headings:
                     if include_headers:
                         content.append(f"#### {subsub.title}")
                     for scene in subsub.scenes:
-                        if scene.text:
-                            content.append(format_scene_script(scene.text))
+                        content.append(format_scene(scene))
                     content.append("")
-
-        # Conclusion
         for scene in article_content.conclusion_paragraphs:
-            if scene.text:
-                content.append(format_scene_script(scene.text))
+            content.append(format_scene(scene))
 
-    # Join all content with double newlines and strip extra whitespace
     final_content = "\n\n".join(filter(None, content)).strip()
     return final_content

@@ -138,26 +138,27 @@ document.addEventListener("DOMContentLoaded", async () => {
           updateStep('revised_outline', true);
           statusMessage.textContent = "Revised outline received.";
           break;
-        case 'article':
+        case 'complete_content':
           updateStep('article', true);
-          statusMessage.textContent = "Final article received.";
-          displayArticle(msg.content);
-          break;
-        case 'audio':
-          updateStep('audio', true);
-          statusMessage.textContent = "Audio file received.";
-          displayAudio(msg.content);
-          break;
-        case 'audio_error':
-          updateStep('audio', false);
-          statusMessage.textContent = "Error generating audio.";
+          statusMessage.textContent = "Content generation complete.";
+          
+          // Display the article
+          displayArticle(msg.content.article);
+          
+          // Handle audio if present
+          if (msg.content.audio_path) {
+            updateStep('audio', true);
+            displayAudio(msg.content.audio_path);
+          } else if (msg.content.audio_error) {
+            updateStep('audio', false);
+            statusMessage.textContent = "Error generating audio: " + msg.content.audio_error;
+          }
           break;
         case 'error':
           statusMessage.textContent = "An error occurred: " + msg.content;
           console.error("Error from server:", msg.content);
           break;
         default:
-          // Other events
           console.log("Unknown event type:", msg);
       }
     }
@@ -171,18 +172,117 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   
     function displayArticle(content) {
-      finalArticle.classList.remove('hidden');
-      // Content is pre-formatted markdown, we can just insert as HTML
-      const escapedContent = content
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-      // Convert newlines to paragraphs or just trust the formatting
-      // We'll trust formatting and add <p> tags where double newlines appear:
-      const htmlContent = escapedContent
-        .split(/\n\n+/)
-        .map(par => `<p>${par.replace(/\n/g, ' ')}</p>`)
-        .join("");
-      articleContent.innerHTML = htmlContent;
+        finalArticle.classList.remove('hidden');
+        
+        try {
+            // If content is a string and contains markdown-style images or paragraphs
+            if (typeof content === 'string') {
+                // Split content into paragraphs and wrap each in <p> tags
+                const htmlContent = content
+                    .split('\n\n')
+                    .map(par => {
+                        // If it's an image markdown, keep it as is
+                        if (par.trim().startsWith('![')) {
+                            return par;
+                        }
+                        // Otherwise wrap in <p> tags
+                        return `<p>${par}</p>`;
+                    })
+                    .join('\n');
+                
+                // Convert markdown image syntax to HTML img tags
+                const finalHtml = htmlContent.replace(
+                    /!\[([^\]]*)\]\(([^)]+)\)/g, 
+                    '<img src="$2" alt="$1" class="w-full max-w-2xl mx-auto my-4 rounded-lg shadow-lg"/>'
+                );
+                
+                articleContent.innerHTML = finalHtml;
+                return;
+            }
+
+            // If we get here, try to handle as JSON
+            const articleData = typeof content === 'string' ? JSON.parse(content) : content;
+            
+            // Function to process scene content
+            const processScene = (scene) => {
+                let html = '';
+                
+                // Add the scene description/text
+                if (scene.text) {
+                    const sceneText = JSON.parse(scene.text);
+                    html += `<div class="scene">`;
+                    sceneText.paragraphs.forEach(paragraph => {
+                        paragraph.lines.forEach(line => {
+                            html += `<p>${line.text}</p>`;
+                        });
+                    });
+                    html += `</div>`;
+                }
+                
+                // Add the scene image if present
+                if (scene.image_url) {
+                    html += `<div class="scene-image">
+                        <img src="${scene.image_url}" alt="Scene Illustration" class="w-full max-w-2xl mx-auto my-4 rounded-lg shadow-lg"/>
+                    </div>`;
+                }
+                
+                return html;
+            };
+
+            let htmlContent = '';
+
+            // Process content based on article length type
+            if (articleData.content.intro_paragraphs) {
+                // Medium or Long article
+                // Process intro paragraphs
+                articleData.content.intro_paragraphs.forEach(scene => {
+                    htmlContent += processScene(scene);
+                });
+
+                // Process main headings
+                articleData.content.main_headings.forEach(heading => {
+                    htmlContent += `<h2 class="text-xl font-bold mt-8 mb-4">${heading.title}</h2>`;
+                    heading.scenes.forEach(scene => {
+                        htmlContent += processScene(scene);
+                    });
+
+                    // Process sub-headings if they exist
+                    if (heading.sub_headings) {
+                        heading.sub_headings.forEach(subHeading => {
+                            htmlContent += `<h3 class="text-lg font-semibold mt-6 mb-3">${subHeading.title}</h3>`;
+                            subHeading.scenes.forEach(scene => {
+                                htmlContent += processScene(scene);
+                            });
+                        });
+                    }
+                });
+
+                // Process conclusion paragraphs
+                if (articleData.content.conclusion_paragraphs) {
+                    articleData.content.conclusion_paragraphs.forEach(scene => {
+                        htmlContent += processScene(scene);
+                    });
+                }
+            } else {
+                // Short article
+                articleData.content.scenes.forEach(scene => {
+                    htmlContent += processScene(scene);
+                });
+            }
+
+            articleContent.innerHTML = htmlContent;
+        } catch (error) {
+            console.error('Error processing article content:', error);
+            // If all else fails, display as plain text
+            const escapedContent = content
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+            const simpleHtmlContent = escapedContent
+                .split(/\n\n+/)
+                .map(par => `<p>${par.replace(/\n/g, ' ')}</p>`)
+                .join("");
+            articleContent.innerHTML = simpleHtmlContent;
+        }
     }
   
     function displayAudio(audioPath) {

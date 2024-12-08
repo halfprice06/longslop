@@ -18,6 +18,7 @@ class Scene(BaseModel):
     scene_description: str
     must_include: str
     text: Optional[str] = None
+    image_url: Optional[str] = None  # NEW FIELD FOR IMAGE
 
 # Base content models
 class SubSubHeading(BaseModel):

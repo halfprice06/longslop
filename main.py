@@ -29,6 +29,9 @@ app.include_router(article_router)
 # Mount the frontend directory
 app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
 
+# Mount the static directory for images
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # Add root redirect to frontend
 @app.get("/")
 async def root():
