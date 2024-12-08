@@ -90,19 +90,19 @@ class ImageService:
                 # If we get here, either the status code wasn't 200 or no images were returned
                 attempt += 1
                 if attempt < max_retries:
-                    logger.warning(f"Retro-Diffusion API attempt {attempt} failed, retrying...")
+                    logger.info(f"Retro-Diffusion API attempt {attempt} failed - Status: {response.status_code}, Response: {response.text[:200]}...")
                     continue
                 else:
-                    logger.error(f"Retro-Diffusion API failed after {max_retries} attempts. Last response: {response.text}")
+                    logger.error(f"Retro-Diffusion API failed after {max_retries} attempts. Status: {response.status_code}, Response: {response.text[:200]}...")
                     return ""
 
             except Exception as e:
                 attempt += 1
                 if attempt < max_retries:
-                    logger.warning(f"Error on attempt {attempt}, retrying: {str(e)}")
+                    logger.info(f"Error on attempt {attempt}: {str(e)}")
                     continue
                 else:
-                    logger.error(f"Failed after {max_retries} attempts. Last error: {str(e)}")
+                    logger.error(f"Failed after {max_retries} attempts. Error: {str(e)}")
                     return ""
 
         return ""

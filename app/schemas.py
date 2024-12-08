@@ -54,6 +54,25 @@ class LongArticleStructure(BaseModel):
     main_headings: List[MainHeading]
     conclusion_paragraphs: List[Scene]
 
+class VoiceOption(BaseModel):
+    voice_id: str
+    name: str
+    description: str
+
+class CharacterVoiceAssignment(BaseModel):
+    character: str
+    chosen_voice_id: str
+
+class VoiceAssignmentResult(BaseModel):
+    assignments: List[CharacterVoiceAssignment]
+
+class CharacterPersonality(BaseModel):
+    character: str
+    personality: str
+
+class CharactersPersonalities(BaseModel):
+    characters: List[CharacterPersonality]
+
 # Enum for article length
 class ArticleLength(str, Enum):
     SHORT = "short"

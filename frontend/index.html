@@ -6,6 +6,8 @@
   <title>LongSlop - AI Story Generator</title>
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Marked.js for Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <!-- Pixel Art Font -->
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
@@ -205,9 +207,146 @@
     .prose {
       color: #fff;
     }
+
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+    }
+
+    .modal-content {
+      position: relative;
+      background-color: #000;
+      margin: 5% auto;
+      padding: 20px;
+      width: 80%;
+      max-width: 800px;
+      max-height: 80vh;
+      overflow-y: auto;
+      border: 2px solid #00ff00;
+    }
+
+    .markdown-content {
+      color: #00ff00;
+      line-height: 1.6;
+    }
+
+    .markdown-content h1,
+    .markdown-content h2,
+    .markdown-content h3,
+    .markdown-content h4 {
+      color: #fff;
+      margin: 1em 0 0.5em;
+      border-bottom: 1px solid #00ff00;
+    }
+
+    .markdown-content p {
+      margin-bottom: 1em;
+    }
+
+    .markdown-content code {
+      background: rgba(0, 255, 0, 0.1);
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+    }
+
+    .markdown-content pre {
+      background: rgba(0, 255, 0, 0.1);
+      padding: 1em;
+      overflow-x: auto;
+      margin: 1em 0;
+    }
+
+    .markdown-content blockquote {
+      border-left: 3px solid #00ff00;
+      margin: 1em 0;
+      padding-left: 1em;
+      color: #00cc00;
+    }
+
+    .modal-close {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      color: #00ff00;
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .modal-close:hover {
+      color: #fff;
+    }
+
+    .clickable {
+      cursor: pointer;
+      color: #00ff00;
+      text-decoration: underline;
+    }
+
+    .clickable:hover {
+      color: #fff;
+    }
+
+    /* Custom Scrollbar Styling */
+    ::-webkit-scrollbar {
+        width: 12px;
+        background: #000000;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: #00ff00;
+        border: 2px solid #000000;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: #00dd00;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: #001100;
+    }
   </style>
 </head>
 <body class="h-full flex flex-col">
+
+  <!-- Add modal containers -->
+  <div id="planModal" class="modal">
+    <div class="modal-content">
+      <span class="modal-close">&times;</span>
+      <h2 class="pixel-heading text-xl">Plan</h2>
+      <div id="planContent" class="markdown-content"></div>
+    </div>
+  </div>
+
+  <div id="outlineModal" class="modal">
+    <div class="modal-content">
+      <span class="modal-close">&times;</span>
+      <h2 class="pixel-heading text-xl">Outline</h2>
+      <pre id="outlineContent" class="text-xs bg-black text-green-400 p-2 overflow-auto"></pre>
+    </div>
+  </div>
+
+  <div id="revisedPlanModal" class="modal">
+    <div class="modal-content">
+      <span class="modal-close">&times;</span>
+      <h2 class="pixel-heading text-xl">Revised Plan</h2>
+      <div id="revisedPlanContent" class="markdown-content"></div>
+    </div>
+  </div>
+
+  <div id="revisedOutlineModal" class="modal">
+    <div class="modal-content">
+      <span class="modal-close">&times;</span>
+      <h2 class="pixel-heading text-xl">Revised Outline</h2>
+      <pre id="revisedOutlineContent" class="text-xs bg-black text-green-400 p-2 overflow-auto"></pre>
+    </div>
+  </div>
 
   <header class="w-full border-b-2 border-green-500 bg-black text-center p-4">
     <img src="/frontend/assets/banner.png" alt="LongSlop Banner" class="pixelated mx-auto" style="width:768px; height:auto;"/>
@@ -240,13 +379,6 @@
               </select>
             </div>
             <div class="flex-1">
-              <label for="includeHeaders" class="block pixel-subheading">Include Headers</label>
-              <select id="includeHeaders" name="includeHeaders" class="pixel-input">
-                <option value="true">Yes</option>
-                <option value="false">No</option>
-              </select>
-            </div>
-            <div class="flex-1">
               <label for="includeAudio" class="block pixel-subheading">Include Audio</label>
               <select id="includeAudio" name="includeAudio" class="pixel-input">
                 <option value="true">Yes</option>
@@ -268,19 +400,19 @@
             <div id="progressSteps" class="flex flex-col space-y-2 text-white">
               <div class="flex items-center space-x-2">
                 <span class="status-icon w-4 h-4 inline-block bg-black" data-step="plan"></span>
-                <span>Plan</span>
+                <span class="clickable" data-modal="planModal">Plan</span>
               </div>
               <div class="flex items-center space-x-2">
                 <span class="status-icon w-4 h-4 inline-block bg-black" data-step="outline"></span>
-                <span>Outline</span>
+                <span class="clickable" data-modal="outlineModal">Outline</span>
               </div>
               <div class="flex items-center space-x-2">
                 <span class="status-icon w-4 h-4 inline-block bg-black" data-step="revised_plan"></span>
-                <span>Revised Plan</span>
+                <span class="clickable" data-modal="revisedPlanModal">Revised Plan</span>
               </div>
               <div class="flex items-center space-x-2">
                 <span class="status-icon w-4 h-4 inline-block bg-black" data-step="revised_outline"></span>
-                <span>Revised Outline</span>
+                <span class="clickable" data-modal="revisedOutlineModal">Revised Outline</span>
               </div>
               <div class="flex items-center space-x-2">
                 <span class="status-icon w-4 h-4 inline-block bg-black" data-step="article"></span>
@@ -293,10 +425,6 @@
             </div>
           </div>
           <div class="text-sm mb-4" id="statusMessage" style="color:#cccccc;">Waiting for server response...</div>
-          <div id="rawDataToggle" class="mb-4 hidden">
-            <button class="text-blue-400 underline text-sm" onclick="toggleRawData()">Toggle Raw JSON Data</button>
-          </div>
-          <pre id="rawData" class="hidden text-xs bg-black text-green-400 p-2 overflow-auto max-h-64 pixel-border"></pre>
         </div>
 
         <div id="finalArticle" class="pixel-border terminal-panel mb-8 hidden">

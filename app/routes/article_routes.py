@@ -24,7 +24,7 @@ router = APIRouter()
 @router.get("/api/v1/write-article-stream")
 async def write_article_stream(
     topic: str,
-    style: str = "new_yorker",
+    style: str = "hemingway",
     length: str = "long",
     provider: str = "openai",
     includeHeaders: bool = True,

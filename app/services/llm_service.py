@@ -129,7 +129,7 @@ def test_api_connection():
 
 def generate_article_plan(
     topic: str, 
-    style_name: str = "new_yorker", 
+    style_name: str = "hemingway", 
     length: Union[str, ArticleLength] = ArticleLength.LONG,
     provider: ProviderType = "openai"
 ) -> str:
@@ -144,25 +144,18 @@ def generate_article_plan(
             raise Exception("Failed to connect to OpenAI API")
             
         # Get style details
-        style = AVAILABLE_STYLES.get(style_name.lower(), AVAILABLE_STYLES["new_yorker"])
+        style = AVAILABLE_STYLES.get(style_name.lower(), AVAILABLE_STYLES["hemingway"])
         
         # Define length-specific instructions
         length_instructions = {
             ArticleLength.SHORT: """
-Plan a concise article or short-story. 
-The piece should have a clear and impactful point or theme.
+The whole story is going to be around 10 - 15 paragraphs max, so you have to develop the story quickly.
                 """,
                 ArticleLength.MEDIUM: """
-Plan a medium-length article or short-story.
-For articles, include 2-3 main sections that build your argument.
-For short stories, outline key plot points with character development.
-Ensure each section or plot point flows naturally into the next.
+The whole story is going to be around 20 - 30 paragraphs, you can't spend too much time on any one scene. 
                 """,
                 ArticleLength.LONG: """
-Plan a comprehensive longform article or long short-story. 
-For articles, include 3-5 main sections with potential subsections for detailed analysis.
-For short stories, develop a complex narrative with multiple characters, subplots, and detailed exploration of themes.
-Allow space for in-depth exploration of ideas or intricate storytelling elements. Describe specific scenes in the order they occur.
+The whole story will be quite long, maybe around 30 - 50 paragraphs, so you can spend more time on each scene.
                 """
             }
         
@@ -180,7 +173,7 @@ Allow space for in-depth exploration of ideas or intricate storytelling elements
 
         Create a detailed plan for an article or short story about: {topic}
         
-        Your suggested article title or short story title should match {style.name}'s style perfectly. Consider these characteristics for titles:
+        Your suggested short story title should match {style.name}'s style perfectly. Consider these characteristics for titles:
 
         A world class short story should feature the following:
 
@@ -223,13 +216,15 @@ Allow space for in-depth exploration of ideas or intricate storytelling elements
         Short story readers expect higher standards
         Even when using tropes, should present them in new ways
 
-        Plan the article or short story to fully embrace {style.name}'s distinctive voice and approach throughout.
+        Plan the short story to fully embrace {style.name}'s distinctive voice and approach throughout.
 
-        For short stories, make sure there is enough action and dialogue to keep the reader engaged. Describe every scene in great detail.
+        Make sure there is enough action and dialogue to keep the reader engaged. Describe every scene in great detail.
 
         Make sure in every scene you have completely anazlyed the characters and their motivations and specifically plan why they are taking specific actions. Think long term about the whole story when planning.
 
-        Make sure to bias each scene to contain a lot of character actions or dialogue. We don't want the story to drag. 
+        Make sure to bias each scene to contain a lot of character actions or dialogue. We don't want the story to drag.
+
+        Only provide one title. 
         """
 
         if provider == "anthropic":
@@ -273,9 +268,9 @@ def structure_article_plan(plan: str, length: ArticleLength = ArticleLength.LONG
         
         # Adjust the system prompt based on length
         length_instructions = {
-            ArticleLength.SHORT: """Create a simple article or short story structure with just paragraphs - no headings or sections.""",
-            ArticleLength.MEDIUM: """Create an article or short story structure with up to 3 main headings. Do not include subheadings.""",
-            ArticleLength.LONG: """Create a full article or short story structure with main headings, subheadings, and sub-subheadings."""
+            ArticleLength.SHORT: """Create a short story structure with a series of scenes - no headings or sections. You may have up to 5 scenes.""",
+            ArticleLength.MEDIUM: """Create a short story structure with up to 10 main headings. Do not include subheadings.""",
+            ArticleLength.LONG: """Create a short story structure with main headings, subheadings, and sub-subheadings."""
         }
         
         # Select the appropriate response format based on length
@@ -375,7 +370,7 @@ def critique_and_elaborate_article_plan(
     topic: str,
     original_plan: str,
     structured_plan: ArticleStructure,
-    style_name: str = "new_yorker",
+    style_name: str = "hemingway",
     length: ArticleLength = ArticleLength.LONG,
     provider: ProviderType = "openai"
 ) -> str:
@@ -383,7 +378,7 @@ def critique_and_elaborate_article_plan(
     try:
         logger.info(f"Critiquing and elaborating on the article plan.")
 
-        style = AVAILABLE_STYLES.get(style_name.lower(), AVAILABLE_STYLES["new_yorker"])
+        style = AVAILABLE_STYLES.get(style_name.lower(), AVAILABLE_STYLES["hemingway"])
 
         # Convert the structured plan to text to provide to the LLM
         structured_plan_text = json.dumps(structured_plan.model_dump(), indent=2)
@@ -488,12 +483,25 @@ def apply_style_transfer(
     content: str,
     scene_description: str,
     must_include: str,
-    style_name: str = "new_yorker",
-    provider: ProviderType = "openai"
+    style_name: str = "hemingway",
+    provider: ProviderType = "openai",
+    length: ArticleLength = ArticleLength.LONG
 ) -> str:
     """Apply style transfer to the generated content, incorporating scene_description and must_include."""
     try:
-        style = AVAILABLE_STYLES.get(style_name.lower(), AVAILABLE_STYLES["new_yorker"])
+        style = AVAILABLE_STYLES.get(style_name.lower(), AVAILABLE_STYLES["hemingway"])
+
+        length_instructions = {
+            ArticleLength.SHORT: """
+        Just write a single paragraph or two. 
+                        """,
+                        ArticleLength.MEDIUM: """
+        Write three to five paragraphs for this section.
+                        """,
+                        ArticleLength.LONG: """
+        Write as many paragraphs as you can to fill this section, but do not write just to write, make sure it serves the story.
+            """
+        }
         max_retries = 3
         current_try = 0
         all_forbidden_words = set()
@@ -548,7 +556,10 @@ Previous version:
 
 {styled_content}
 
-Do not return any content other than the rewritten content. Do not include introductory text like 'Here is the rewritten content:, just return the rewritten text by itself."""
+Do not return any content other than the rewritten content. Do not include introductory text like 'Here is the rewritten content:, just return the rewritten text by itself.
+
+EXTREMELY IMPORTANT - Do not add to the length of the existing content, just apply the style.
+"""
 
                 # Call the LLM API
                 if provider == "anthropic":
@@ -557,7 +568,7 @@ Do not return any content other than the rewritten content. Do not include intro
                         messages=[
                             {"role": "user", "content": prompt}
                         ],
-                        max_tokens=50
+                        max_tokens=8000
                     )
                     styled_content = completion.content[0].text.strip()
 
@@ -565,7 +576,7 @@ Do not return any content other than the rewritten content. Do not include intro
                     completion = openai.chat.completions.create(
                         model="gpt-4o-2024-11-20",
                         messages=[{"role": "user", "content": prompt}],
-                        max_tokens=50
+                        max_tokens=8000
                     )
                     styled_content = completion.choices[0].message.content.strip()
 
@@ -729,8 +740,9 @@ def write_paragraph(
     structured_plan: ArticleStructure,
     written_content: Union[ArticleStructure, ShortArticleStructure, MediumArticleStructure, LongArticleStructure],
     scene: Scene,
-    style: str = "new_yorker",
-    provider: ProviderType = "openai"
+    style: str = "hemingway",
+    provider: ProviderType = "openai",
+    length: ArticleLength = ArticleLength.LONG,
 ) -> str:
     """Write a specific scene of the article or short story."""
     try:
@@ -744,7 +756,20 @@ def write_paragraph(
         logger.info(f"Writing scene: {scene_description}")
 
         # Get the selected style details
-        style_details = AVAILABLE_STYLES.get(style.lower(), AVAILABLE_STYLES["new_yorker"])
+        style_details = AVAILABLE_STYLES.get(style.lower(), AVAILABLE_STYLES["hemingway"])
+
+                # Define length-specific instructions
+        length_instructions = {
+            ArticleLength.SHORT: """
+        Just write a single paragraph or two (or one or two paragraphs worth of dialogue). 
+                        """,
+                        ArticleLength.MEDIUM: """
+        Write three to five paragraphs for this section.
+                        """,
+                        ArticleLength.LONG: """
+        Write as many paragraphs as you can to fill this section, but do not write just to write, make sure it serves the story.
+            """
+        }
 
         prompt = f"""
 <style guide>
@@ -797,6 +822,10 @@ Make sure to bias each scene to contain a lot of character actions or dialogue. 
 
 Do not return any text other than the next section of the article or short story.
 
+EXTREMELY IMPORTANT - Length instructions:
+
+{length_instructions[length]}
+
 </instructions>
 """
 
@@ -806,14 +835,14 @@ Do not return any text other than the next section of the article or short story
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=50
+                max_tokens=8000
             )
             generated_content = completion.content[0].text.strip()
         else:
             completion = openai.chat.completions.create(
                 model="gpt-4o-2024-11-20",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=50
+                max_tokens=8000
             )
             generated_content = completion.choices[0].message.content.strip()
 
@@ -849,9 +878,9 @@ def write_full_article(
     topic: str,
     original_plan: str,
     structured_plan: ArticleStructure,
-    style: str = "new_yorker",
+    style: str = "hemingway",
     provider: ProviderType = "openai",
-    include_headers: bool = True
+    include_headers: bool = False
 ) -> Tuple[ArticleStructure, SceneScript]:
     """Write the entire article or short story, generating each paragraph individually."""
     
@@ -872,7 +901,7 @@ def write_full_article(
             for idx, scene in enumerate(written_article.content.scenes):
                 scene_text = write_paragraph(
                     topic, original_plan, structured_plan, written_article,
-                    scene, style=style, provider=provider
+                    scene, style=style, provider=provider, length=structured_plan.length
                 )
                 scene_script = extract_scene_script(scene_text, provider)
                 written_article.content.scenes[idx].text = scene_script.model_dump_json()
@@ -888,7 +917,7 @@ def write_full_article(
             for idx, scene in enumerate(written_article.content.intro_paragraphs):
                 scene_text = write_paragraph(
                     topic, original_plan, structured_plan, written_article,
-                    scene, style=style, provider=provider
+                    scene, style=style, provider=provider, length=structured_plan.length
                 )
                 scene_script = extract_scene_script(scene_text, provider)
                 written_article.content.intro_paragraphs[idx].text = scene_script.model_dump_json()
@@ -904,7 +933,7 @@ def write_full_article(
                 for idx, scene in enumerate(heading.scenes):
                     scene_text = write_paragraph(
                         topic, original_plan, structured_plan, written_article,
-                        scene, style=style, provider=provider
+                        scene, style=style, provider=provider, length=structured_plan.length
                     )
                     scene_script = extract_scene_script(scene_text, provider)
                     heading.scenes[idx].text = scene_script.model_dump_json()
@@ -919,7 +948,7 @@ def write_full_article(
             for idx, scene in enumerate(written_article.content.conclusion_paragraphs):
                 scene_text = write_paragraph(
                     topic, original_plan, structured_plan, written_article,
-                    scene, style=style, provider=provider
+                    scene, style=style, provider=provider, length=structured_plan.length
                 )
                 scene_script = extract_scene_script(scene_text, provider)
                 written_article.content.conclusion_paragraphs[idx].text = scene_script.model_dump_json()
@@ -934,7 +963,7 @@ def write_full_article(
             # Introduction
             for idx, scene in enumerate(written_article.content.intro_paragraphs):
                 scene_text = write_paragraph(
-                    topic, original_plan, structured_plan, written_article, scene, style=style, provider=provider
+                    topic, original_plan, structured_plan, written_article, scene, style=style, provider=provider, length=structured_plan.length
                 )
                 scene_script = extract_scene_script(scene_text, provider)
                 written_article.content.intro_paragraphs[idx].text = scene_script.model_dump_json()
@@ -950,7 +979,7 @@ def write_full_article(
                 for idx, scene in enumerate(heading.scenes):
                     scene_text = write_paragraph(
                         topic, original_plan, structured_plan, written_article,
-                        scene, style=style, provider=provider
+                        scene, style=style, provider=provider, length=structured_plan.length
                     )
                     scene_script = extract_scene_script(scene_text, provider)
                     heading.scenes[idx].text = scene_script.model_dump_json()
@@ -965,7 +994,7 @@ def write_full_article(
                     for idx, scene in enumerate(sub.scenes):
                         scene_text = write_paragraph(
                             topic, original_plan, structured_plan, written_article,
-                            scene, style=style, provider=provider
+                            scene, style=style, provider=provider, length=structured_plan.length
                         )
                         scene_script = extract_scene_script(scene_text, provider)
                         sub.scenes[idx].text = scene_script.model_dump_json()
@@ -980,7 +1009,7 @@ def write_full_article(
                         for idx, scene in enumerate(subsub.scenes):
                             scene_text = write_paragraph(
                                 topic, original_plan, structured_plan, written_article,
-                                scene, style=style, provider=provider
+                                scene, style=style, provider=provider, length=structured_plan.length
                             )
                             scene_script = extract_scene_script(scene_text, provider)
                             subsub.scenes[idx].text = scene_script.model_dump_json()
@@ -995,7 +1024,7 @@ def write_full_article(
             for idx, scene in enumerate(written_article.content.conclusion_paragraphs):
                 scene_text = write_paragraph(
                     topic, original_plan, structured_plan, written_article,
-                    scene, style=style, provider=provider
+                    scene, style=style, provider=provider, length=structured_plan.length    
                 )
                 scene_script = extract_scene_script(scene_text, provider)
                 written_article.content.conclusion_paragraphs[idx].text = scene_script.model_dump_json()
@@ -1055,7 +1084,7 @@ def format_written_content(
     written_article: Union[
         ArticleStructure, ShortArticleStructure, MediumArticleStructure, LongArticleStructure
     ],
-    include_headers: bool = True
+    include_headers: bool = False
 ) -> str:
 
     content = []

@@ -4,7 +4,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const outputSection = document.getElementById('outputSection');
     const statusMessage = document.getElementById('statusMessage');
     const rawData = document.getElementById('rawData');
-    const rawDataToggle = document.getElementById('rawDataToggle');
     const finalArticle = document.getElementById('finalArticle');
     const articleContent = document.getElementById('articleContent');
     const audioSection = document.getElementById('audioSection');
@@ -13,6 +12,36 @@ document.addEventListener("DOMContentLoaded", async () => {
     const generateFormSection = document.querySelector('.pixel-border.terminal-panel.mb-8');
     const progressSection = document.querySelector('#outputSection > .pixel-border.terminal-panel.mb-8');
     const mainContainer = document.querySelector('main .max-w-3xl');
+    
+    // Modal elements
+    const modals = document.querySelectorAll('.modal');
+    const modalContents = {
+        plan: document.getElementById('planContent'),
+        outline: document.getElementById('outlineContent'),
+        revised_plan: document.getElementById('revisedPlanContent'),
+        revised_outline: document.getElementById('revisedOutlineContent')
+    };
+    
+    // Initialize modal functionality
+    document.querySelectorAll('.clickable[data-modal]').forEach(trigger => {
+        trigger.addEventListener('click', () => {
+            const modalId = trigger.getAttribute('data-modal');
+            const modal = document.getElementById(modalId);
+            if (modal) modal.style.display = 'block';
+        });
+    });
+
+    document.querySelectorAll('.modal-close').forEach(closeBtn => {
+        closeBtn.addEventListener('click', () => {
+            closeBtn.closest('.modal').style.display = 'none';
+        });
+    });
+
+    window.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) {
+            e.target.style.display = 'none';
+        }
+    });
     
     if (includeAudioParam === "false") {
         audioSection.classList.add('hidden');
@@ -47,17 +76,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       const topic = document.getElementById('topic').value.trim();
       const style = document.getElementById('style').value;
       const length = document.getElementById('length').value;
-      const includeHeaders = document.getElementById('includeHeaders').value === "true";
   
       if (!topic) {
         alert("Please enter a topic.");
         return;
       }
   
-      startGeneration(topic, style, length, includeHeaders);
+      startGeneration(topic, style, length);
     });
   
-    function startGeneration(topic, style, length, includeHeaders) {
+    function startGeneration(topic, style, length) {
       resetUI();
       outputSection.classList.remove('hidden');
 
@@ -68,7 +96,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         style: style,
         length: length,
         provider: 'openai',
-        includeHeaders: includeHeaders,
         includeAudio: includeAudio
       });
   
@@ -84,10 +111,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
           const msg = JSON.parse(event.data);
           cumulativeData.push(msg);
-          rawDataToggle.classList.remove('hidden');
-  
-          // Update raw data display
-          rawData.textContent = JSON.stringify(cumulativeData, null, 2);
   
           // Handle different event types
           handleEvent(msg);
@@ -108,38 +131,74 @@ document.addEventListener("DOMContentLoaded", async () => {
     function resetUI() {
       // Reset progress steps
       document.querySelectorAll('.status-icon').forEach(icon => {
-        icon.classList.remove('bg-green-500', 'bg-red-500', 'bg-indigo-500');
-        icon.classList.add('bg-gray-300');
+        icon.classList.remove('bg-green-500', 'bg-red-500');
+        icon.style.backgroundColor = '#000000'; // Reset to black background
       });
+      
       statusMessage.textContent = "Waiting for server response...";
-      rawData.textContent = "";
-      rawData.classList.add('hidden');
-      rawDataVisible = false;
-      rawDataToggle.classList.add('hidden');
+      cumulativeData = [];
+
+      // Reset modal contents
+      Object.values(modalContents).forEach(content => {
+          if (content) {
+              if (content.classList.contains('markdown-content')) {
+                  content.innerHTML = '';
+              } else {
+                  content.textContent = '';
+              }
+          }
+      });
+
+      // Reset article and audio sections
       articleContent.innerHTML = "";
       finalArticle.classList.add('hidden');
       audioSection.classList.add('hidden');
       articleAudio.src = "";
-      cumulativeData = [];
     }
   
+    // Configure marked.js
+    marked.setOptions({
+        breaks: true,
+        gfm: true
+    });
+
+    // Helper function to safely render content as markdown or JSON
+    function renderContent(content, isMarkdown = false) {
+        if (typeof content === 'string' && isMarkdown) {
+            return marked.parse(content);
+        }
+        return JSON.stringify(content, null, 2);
+    }
+
     function handleEvent(msg) {
       switch(msg.type) {
         case 'plan':
           updateStep('plan', true);
           statusMessage.textContent = "Plan received.";
+          if (modalContents.plan) {
+              modalContents.plan.innerHTML = renderContent(msg.content, true);
+          }
           break;
         case 'outline':
           updateStep('outline', true);
           statusMessage.textContent = "Outline received.";
+          if (modalContents.outline) {
+              modalContents.outline.textContent = renderContent(msg.content);
+          }
           break;
         case 'revised_plan':
           updateStep('revised_plan', true);
           statusMessage.textContent = "Revised plan received.";
+          if (modalContents.revised_plan) {
+              modalContents.revised_plan.innerHTML = renderContent(msg.content, true);
+          }
           break;
         case 'revised_outline':
           updateStep('revised_outline', true);
           statusMessage.textContent = "Revised outline received.";
+          if (modalContents.revised_outline) {
+              modalContents.revised_outline.textContent = renderContent(msg.content);
+          }
           break;
         case 'complete_content':
           updateStep('article', true);
@@ -181,8 +240,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     function updateStep(step, success) {
       const icon = document.querySelector(`.status-icon[data-step="${step}"]`);
       if (icon) {
-        icon.classList.remove('bg-gray-300');
-        icon.classList.add(success ? 'bg-green-500' : 'bg-red-500');
+        icon.style.backgroundColor = success ? '#00ff00' : '#ff0000'; // Green for success, red for failure
       }
     }
   
@@ -306,15 +364,4 @@ document.addEventListener("DOMContentLoaded", async () => {
       const fullPath = audioPath.startsWith('output/') ? `/frontend/${audioPath}` : audioPath;
       articleAudio.src = fullPath;
     }
-  
-    window.toggleRawData = function() {
-      rawDataVisible = !rawDataVisible;
-      if (rawDataVisible) {
-        rawData.classList.remove('hidden');
-      } else {
-        rawData.classList.add('hidden');
-      }
-    }
-    
   });
-  
